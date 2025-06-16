@@ -8,7 +8,6 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 COPY client/package*.json ./client/
-COPY server/package*.json ./server/ 2>/dev/null || true
 
 # Install dependencies
 RUN npm ci --only=production && npm cache clean --force

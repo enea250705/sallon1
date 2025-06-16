@@ -67,4 +67,7 @@ create-*.sql
 
 # Deploy files
 DEPLOY.md
-deploy-config.env 
+deploy-config.env
+
+# Force Render to NOT use Docker
+Dockerfile 

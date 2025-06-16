@@ -1,7 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Layout } from "@/components/layout/layout";
-import { Users, Calendar, Scissors, Clock, Plus } from "lucide-react";
+import { Users, Calendar, Scissors, Clock, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -123,6 +123,35 @@ export default function Dashboard() {
 
   const onSubmit = (data: QuickAppointmentForm) => {
     createAppointmentMutation.mutate(data);
+  };
+
+
+
+  const deleteAppointmentMutation = useMutation({
+    mutationFn: async (appointmentId: number) => {
+      return apiRequest("DELETE", `/api/appointments/${appointmentId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/appointments"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+      toast({ 
+        title: "Appuntamento cancellato", 
+        description: "L'appuntamento è stato cancellato con successo" 
+      });
+    },
+    onError: () => {
+      toast({ 
+        title: "Errore", 
+        description: "Impossibile cancellare l'appuntamento",
+        variant: "destructive" 
+      });
+    },
+  });
+
+  const cancelAppointment = (appointmentId: number, clientName: string) => {
+    if (confirm(`Sei sicuro di voler cancellare l'appuntamento di ${clientName}?`)) {
+      deleteAppointmentMutation.mutate(appointmentId);
+    }
   };
 
   return (
@@ -389,13 +418,24 @@ export default function Dashboard() {
                         {appointment.service.name} • {appointment.stylist.name}
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="font-semibold text-pink-600">
-                        {appointment.startTime.slice(0, 5)}
+                    <div className="flex items-center gap-3">
+                      <div className="text-right">
+                        <div className="font-semibold text-pink-600">
+                          {appointment.startTime.slice(0, 5)}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {appointment.service.duration}min
+                        </div>
                       </div>
-                      <div className="text-sm text-gray-500">
-                        {appointment.service.duration}min
-                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => cancelAppointment(appointment.id, `${appointment.client.firstName} ${appointment.client.lastName}`)}
+                        className="text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
+                        disabled={deleteAppointmentMutation.isPending}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
                   </div>
                 ))}

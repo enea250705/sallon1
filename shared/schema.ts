@@ -87,6 +87,23 @@ export const messageTemplates = pgTable("message_templates", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Recurring reminders table for automatic weekly/monthly reminders
+export const recurringReminders = pgTable("recurring_reminders", {
+  id: serial("id").primaryKey(),
+  clientId: integer("client_id").references(() => clients.id).notNull(),
+  serviceId: integer("service_id").references(() => services.id).notNull(),
+  stylistId: integer("stylist_id").references(() => stylists.id).notNull(),
+  frequency: varchar("frequency", { length: 20 }).notNull(), // 'weekly', 'biweekly', 'monthly'
+  dayOfWeek: integer("day_of_week"), // 0-6 (Sunday-Saturday) for weekly reminders
+  dayOfMonth: integer("day_of_month"), // 1-31 for monthly reminders
+  preferredTime: time("preferred_time"), // Preferred appointment time
+  isActive: boolean("is_active").default(true),
+  lastReminderSent: date("last_reminder_sent"),
+  nextReminderDate: date("next_reminder_date"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Session storage table for authentication
 export const sessions = pgTable(
   "sessions",
@@ -133,6 +150,14 @@ export const insertMessageTemplateSchema = createInsertSchema(messageTemplates).
   createdAt: true,
 });
 
+export const insertRecurringReminderSchema = createInsertSchema(recurringReminders).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  lastReminderSent: true,
+  nextReminderDate: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -152,8 +177,17 @@ export type InsertAppointment = z.infer<typeof insertAppointmentSchema>;
 export type MessageTemplate = typeof messageTemplates.$inferSelect;
 export type InsertMessageTemplate = z.infer<typeof insertMessageTemplateSchema>;
 
+export type RecurringReminder = typeof recurringReminders.$inferSelect;
+export type InsertRecurringReminder = z.infer<typeof insertRecurringReminderSchema>;
+
 // Extended types with relations
 export type AppointmentWithDetails = Appointment & {
+  client: Client;
+  stylist: Stylist;
+  service: Service;
+};
+
+export type RecurringReminderWithDetails = RecurringReminder & {
   client: Client;
   stylist: Stylist;
   service: Service;

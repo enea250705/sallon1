@@ -15,6 +15,9 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { format, addDays, subDays, startOfWeek, addWeeks, subWeeks, startOfMonth, endOfMonth, addMonths, subMonths, eachDayOfInterval, isSameMonth, isSameDay, isToday } from "date-fns";
 import { it } from "date-fns/locale";
+import { DndContext, DragEndEvent, DragOverlay, DragStartEvent } from '@dnd-kit/core';
+import { DraggableAppointment } from "@/components/calendar/draggable-appointment";
+import { DroppableDay } from "@/components/calendar/droppable-day";
 
 const appointmentSchema = z.object({
   clientName: z.string().min(1, "Nome cliente è richiesto"),
@@ -32,6 +35,7 @@ export default function Calendar() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<"month" | "day">("month");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [draggedAppointment, setDraggedAppointment] = useState<any>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -153,8 +157,57 @@ export default function Calendar() {
     },
   });
 
+  const updateAppointmentMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: any }) => {
+      return apiRequest("PUT", `/api/appointments/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/appointments"] });
+      toast({
+        title: "Appuntamento aggiornato",
+        description: "L'appuntamento è stato spostato con successo",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Errore",
+        description: "Impossibile aggiornare l'appuntamento",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteAppointmentMutation = useMutation({
+    mutationFn: async (appointmentId: number) => {
+      return apiRequest("DELETE", `/api/appointments/${appointmentId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/appointments"] });
+      toast({ 
+        title: "Appuntamento cancellato", 
+        description: "L'appuntamento è stato cancellato con successo" 
+      });
+    },
+    onError: () => {
+      toast({ 
+        title: "Errore", 
+        description: "Impossibile cancellare l'appuntamento",
+        variant: "destructive" 
+      });
+    },
+  });
+
   const onSubmit = (data: AppointmentForm) => {
     createAppointmentMutation.mutate(data);
+  };
+
+  const cancelAppointment = (appointmentId: number) => {
+    const appointment = appointments?.find(apt => apt.id === appointmentId);
+    const clientName = appointment ? `${appointment.client.firstName} ${appointment.client.lastName}` : 'questo cliente';
+    
+    if (confirm(`Sei sicuro di voler cancellare l'appuntamento di ${clientName}?`)) {
+      deleteAppointmentMutation.mutate(appointmentId);
+    }
   };
 
   // Navigation functions
@@ -181,6 +234,50 @@ export default function Calendar() {
     return appointments.filter(apt => apt.date === dateString);
   };
 
+  // Drag and drop handlers
+  const handleDragStart = (event: DragStartEvent) => {
+    const appointment = event.active.data.current?.appointment;
+    setDraggedAppointment(appointment);
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    
+    if (!over || !draggedAppointment) {
+      setDraggedAppointment(null);
+      return;
+    }
+
+    const appointmentId = draggedAppointment.id;
+    const newDate = over.data.current?.date;
+    
+    if (!newDate) {
+      setDraggedAppointment(null);
+      return;
+    }
+
+    // Check if we're actually moving to a different date
+    const currentDate = draggedAppointment.date;
+    if (currentDate === newDate) {
+      setDraggedAppointment(null);
+      return;
+    }
+
+    // Update the appointment with the new date
+    updateAppointmentMutation.mutate({
+      id: appointmentId,
+      data: {
+        date: newDate,
+        startTime: draggedAppointment.startTime,
+        clientId: draggedAppointment.clientId,
+        serviceId: draggedAppointment.serviceId,
+        stylistId: draggedAppointment.stylistId,
+      }
+    });
+
+    setDraggedAppointment(null);
+  };
+
   // Generate calendar days for monthly view
   const monthStart = startOfMonth(selectedDate);
   const monthEnd = endOfMonth(selectedDate);
@@ -198,8 +295,9 @@ export default function Calendar() {
   const dayAppointments = appointments?.filter(app => app.date === format(selectedDate, "yyyy-MM-dd")) || [];
 
   return (
-    <Layout>
-      <div className="space-y-6">
+    <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+      <Layout>
+        <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
@@ -449,53 +547,18 @@ export default function Calendar() {
                 
                 {/* Calendar Grid */}
                 <div className="grid grid-cols-7 gap-1">
-                  {calendarDays.map((day, index) => {
-                    const dayAppointments = getAppointmentsForDate(day);
-                    const isCurrentMonth = isSameMonth(day, selectedDate);
-                    const isSelected = isSameDay(day, selectedDate);
-                    const isCurrentDay = isToday(day);
-                    
-                    return (
-                      <div
-                        key={index}
-                        onClick={() => {
-                          setSelectedDate(day);
-                          setViewMode('day');
-                        }}
-                        className={`
-                          min-h-[80px] p-2 border rounded-lg cursor-pointer transition-colors
-                          ${isCurrentMonth ? 'bg-white hover:bg-gray-50' : 'bg-gray-50 text-gray-400'}
-                          ${isSelected ? 'ring-2 ring-pink-500' : ''}
-                          ${isCurrentDay ? 'bg-pink-50 border-pink-200' : 'border-gray-200'}
-                        `}
-                      >
-                        <div className={`text-sm font-medium mb-1 ${
-                          isCurrentDay ? 'text-pink-600' : 
-                          isCurrentMonth ? 'text-gray-900' : 'text-gray-400'
-                        }`}>
-                          {format(day, 'd')}
-                        </div>
-                        
-                        {/* Appointment dots */}
-                        <div className="space-y-1">
-                          {dayAppointments.slice(0, 3).map((apt: any, i: number) => (
-                            <div
-                              key={i}
-                              className="text-xs px-1 py-0.5 bg-gradient-to-r from-pink-100 to-purple-100 text-pink-700 rounded truncate"
-                              title={`${apt.startTime.slice(0, 5)} - ${apt.client.firstName} ${apt.client.lastName}`}
-                            >
-                              {apt.startTime.slice(0, 5)} {apt.client.firstName}
-                            </div>
-                          ))}
-                          {dayAppointments.length > 3 && (
-                            <div className="text-xs text-gray-500">
-                              +{dayAppointments.length - 3} altri
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
+                  {calendarDays.map((day, index) => (
+                    <DroppableDay
+                      key={index}
+                      day={day}
+                      selectedDate={selectedDate}
+                      appointments={getAppointmentsForDate(day)}
+                      onDayClick={(day) => {
+                        setSelectedDate(day);
+                        setViewMode('day');
+                      }}
+                    />
+                  ))}
                 </div>
               </div>
             ) : (
@@ -508,34 +571,30 @@ export default function Calendar() {
               ) : (
                 <div className="space-y-4">
                   {dayAppointments.map((appointment: any) => (
-                    <div
+                    <DraggableAppointment
                       key={appointment.id}
-                      className="flex items-center justify-between p-4 bg-gradient-to-r from-pink-50 to-purple-50 rounded-lg border"
-                    >
-                      <div className="flex-1">
-                        <div className="font-semibold text-gray-900">
-                          {appointment.client.firstName} {appointment.client.lastName}
-                        </div>
-                        <div className="text-sm text-gray-600">
-                          {appointment.service.name} • {appointment.stylist.name}
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="font-semibold text-pink-600">
-                          {appointment.startTime.slice(0, 5)}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          {appointment.service.duration}min
-                        </div>
-                      </div>
-                    </div>
+                      appointment={appointment}
+                      isMonthView={false}
+                      onDelete={cancelAppointment}
+                    />
                   ))}
                 </div>
               )
             )}
           </CardContent>
         </Card>
+        
+        {/* Drag Overlay */}
+        <DragOverlay>
+          {draggedAppointment ? (
+            <DraggableAppointment
+              appointment={draggedAppointment}
+              isMonthView={viewMode === 'month'}
+            />
+          ) : null}
+        </DragOverlay>
       </div>
     </Layout>
+    </DndContext>
   );
 }

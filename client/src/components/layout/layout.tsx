@@ -10,7 +10,8 @@ import {
   Settings, 
   LogOut,
   Menu,
-  X
+  X,
+  Bell
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -18,8 +19,10 @@ import { cn } from "@/lib/utils";
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Appuntamenti", href: "/calendar", icon: Calendar },
+  { name: "Clienti", href: "/clients", icon: Users },
   { name: "Servizi", href: "/services", icon: Scissors },
-  { name: "Staff", href: "/staff", icon: UserCog },
+  { name: "Stilisti", href: "/stylists", icon: UserCog },
+  { name: "Promemoria", href: "/recurring-reminders", icon: Bell },
   { name: "Impostazioni", href: "/settings", icon: Settings },
 ];
 

@@ -5,6 +5,7 @@ import {
   stylists,
   appointments,
   messageTemplates,
+  recurringReminders,
   type User,
   type InsertUser,
   type Client,
@@ -18,6 +19,9 @@ import {
   type AppointmentWithDetails,
   type MessageTemplate,
   type InsertMessageTemplate,
+  type RecurringReminder,
+  type InsertRecurringReminder,
+  type RecurringReminderWithDetails,
 } from "@shared/schema";
 import { eq, and, gte, lte, desc, asc, like, or } from "drizzle-orm";
 import { db } from "./db";
@@ -78,6 +82,16 @@ export interface IStorage {
   updateMessageTemplate(id: number, templateData: Partial<InsertMessageTemplate>): Promise<MessageTemplate | undefined>;
   deleteMessageTemplate(id: number): Promise<boolean>;
   
+  // Recurring reminders
+  createRecurringReminder(reminder: InsertRecurringReminder): Promise<RecurringReminder>;
+  getRecurringReminder(id: number): Promise<RecurringReminderWithDetails | undefined>;
+  getAllRecurringReminders(): Promise<RecurringReminderWithDetails[]>;
+  getClientRecurringReminders(clientId: number): Promise<RecurringReminderWithDetails[]>;
+  updateRecurringReminder(id: number, reminderData: Partial<InsertRecurringReminder>): Promise<RecurringReminder | undefined>;
+  deleteRecurringReminder(id: number): Promise<boolean>;
+  getActiveRecurringReminders(): Promise<RecurringReminderWithDetails[]>;
+  updateNextReminderDate(id: number, nextDate: string): Promise<boolean>;
+  
   // Session store
   sessionStore: any;
 }
@@ -89,7 +103,8 @@ export class DatabaseStorage implements IStorage {
     const pgStore = connectPg(session);
     this.sessionStore = new pgStore({
       pool: pool,
-      createTableIfMissing: false,
+      createTableIfMissing: true,
+      tableName: 'sessions',
     });
     this.initializeDefaultData();
   }
@@ -591,6 +606,190 @@ export class DatabaseStorage implements IStorage {
       .where(eq(messageTemplates.id, id))
       .returning();
     return !!template;
+  }
+
+  // Recurring reminders
+  async createRecurringReminder(reminderData: InsertRecurringReminder): Promise<RecurringReminder> {
+    // Calculate next reminder date based on frequency
+    const nextReminderDate = this.calculateNextReminderDate(reminderData.frequency, reminderData.dayOfWeek, reminderData.dayOfMonth);
+    
+    const [reminder] = await db.insert(recurringReminders).values({
+      ...reminderData,
+      nextReminderDate,
+    }).returning();
+    return reminder;
+  }
+
+  async getRecurringReminder(id: number): Promise<RecurringReminderWithDetails | undefined> {
+    const results = await db
+      .select({
+        reminder: recurringReminders,
+        client: clients,
+        stylist: stylists,
+        service: services,
+      })
+      .from(recurringReminders)
+      .leftJoin(clients, eq(recurringReminders.clientId, clients.id))
+      .leftJoin(stylists, eq(recurringReminders.stylistId, stylists.id))
+      .leftJoin(services, eq(recurringReminders.serviceId, services.id))
+      .where(eq(recurringReminders.id, id));
+
+    if (results.length === 0) return undefined;
+
+    const result = results[0];
+    return {
+      ...result.reminder,
+      client: result.client!,
+      stylist: result.stylist!,
+      service: result.service!,
+    };
+  }
+
+  async getAllRecurringReminders(): Promise<RecurringReminderWithDetails[]> {
+    const results = await db
+      .select({
+        reminder: recurringReminders,
+        client: clients,
+        stylist: stylists,
+        service: services,
+      })
+      .from(recurringReminders)
+      .leftJoin(clients, eq(recurringReminders.clientId, clients.id))
+      .leftJoin(stylists, eq(recurringReminders.stylistId, stylists.id))
+      .leftJoin(services, eq(recurringReminders.serviceId, services.id))
+      .where(eq(recurringReminders.isActive, true))
+      .orderBy(asc(clients.firstName), asc(clients.lastName));
+
+    return results.map(result => ({
+      ...result.reminder,
+      client: result.client!,
+      stylist: result.stylist!,
+      service: result.service!,
+    }));
+  }
+
+  async getClientRecurringReminders(clientId: number): Promise<RecurringReminderWithDetails[]> {
+    const results = await db
+      .select({
+        reminder: recurringReminders,
+        client: clients,
+        stylist: stylists,
+        service: services,
+      })
+      .from(recurringReminders)
+      .leftJoin(clients, eq(recurringReminders.clientId, clients.id))
+      .leftJoin(stylists, eq(recurringReminders.stylistId, stylists.id))
+      .leftJoin(services, eq(recurringReminders.serviceId, services.id))
+      .where(and(
+        eq(recurringReminders.clientId, clientId),
+        eq(recurringReminders.isActive, true)
+      ));
+
+    return results.map(result => ({
+      ...result.reminder,
+      client: result.client!,
+      stylist: result.stylist!,
+      service: result.service!,
+    }));
+  }
+
+  async updateRecurringReminder(id: number, reminderData: Partial<InsertRecurringReminder>): Promise<RecurringReminder | undefined> {
+    const [reminder] = await db
+      .update(recurringReminders)
+      .set({
+        ...reminderData,
+        updatedAt: new Date(),
+      })
+      .where(eq(recurringReminders.id, id))
+      .returning();
+    return reminder;
+  }
+
+  async deleteRecurringReminder(id: number): Promise<boolean> {
+    const [reminder] = await db
+      .update(recurringReminders)
+      .set({ isActive: false })
+      .where(eq(recurringReminders.id, id))
+      .returning();
+    return !!reminder;
+  }
+
+  async getActiveRecurringReminders(): Promise<RecurringReminderWithDetails[]> {
+    const today = new Date().toISOString().split('T')[0];
+    
+    const results = await db
+      .select({
+        reminder: recurringReminders,
+        client: clients,
+        stylist: stylists,
+        service: services,
+      })
+      .from(recurringReminders)
+      .leftJoin(clients, eq(recurringReminders.clientId, clients.id))
+      .leftJoin(stylists, eq(recurringReminders.stylistId, stylists.id))
+      .leftJoin(services, eq(recurringReminders.serviceId, services.id))
+      .where(and(
+        eq(recurringReminders.isActive, true),
+        lte(recurringReminders.nextReminderDate, today)
+      ));
+
+    return results.map(result => ({
+      ...result.reminder,
+      client: result.client!,
+      stylist: result.stylist!,
+      service: result.service!,
+    }));
+  }
+
+  async updateNextReminderDate(id: number, nextDate: string): Promise<boolean> {
+    const [reminder] = await db
+      .update(recurringReminders)
+      .set({ 
+        nextReminderDate: nextDate,
+        lastReminderSent: new Date().toISOString().split('T')[0],
+        updatedAt: new Date(),
+      })
+      .where(eq(recurringReminders.id, id))
+      .returning();
+    return !!reminder;
+  }
+
+  private calculateNextReminderDate(frequency: string, dayOfWeek?: number | null, dayOfMonth?: number | null): string {
+    const today = new Date();
+    let nextDate = new Date(today);
+
+    switch (frequency) {
+      case 'weekly':
+        if (dayOfWeek !== undefined && dayOfWeek !== null) {
+          const daysUntilTarget = (dayOfWeek - today.getDay() + 7) % 7;
+          if (daysUntilTarget === 0) {
+            nextDate.setDate(today.getDate() + 7); // Next week if today is the target day
+          } else {
+            nextDate.setDate(today.getDate() + daysUntilTarget);
+          }
+        }
+        break;
+      case 'biweekly':
+        if (dayOfWeek !== undefined && dayOfWeek !== null) {
+          const daysUntilTarget = (dayOfWeek - today.getDay() + 7) % 7;
+          nextDate.setDate(today.getDate() + daysUntilTarget + 14);
+        }
+        break;
+      case 'monthly':
+        if (dayOfMonth !== undefined && dayOfMonth !== null) {
+          nextDate.setMonth(today.getMonth() + 1);
+          nextDate.setDate(dayOfMonth);
+          // If the day doesn't exist in the next month, set to last day of month
+          if (nextDate.getDate() !== dayOfMonth) {
+            nextDate.setDate(0); // Last day of previous month
+          }
+        }
+        break;
+      default:
+        nextDate.setDate(today.getDate() + 7); // Default to weekly
+    }
+
+    return nextDate.toISOString().split('T')[0];
   }
 }
 

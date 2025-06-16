@@ -1,9 +1,10 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import path from "path";
 import { storage } from "./storage";
 import bcrypt from "bcrypt";
 import session from "express-session";
-import { insertClientSchema, insertAppointmentSchema, insertServiceSchema, insertStylistSchema, insertMessageTemplateSchema, insertUserSchema } from "@shared/schema";
+import { insertClientSchema, insertAppointmentSchema, insertServiceSchema, insertStylistSchema, insertMessageTemplateSchema, insertUserSchema, insertRecurringReminderSchema } from "@shared/schema";
 import { z } from "zod";
 
 // Authentication middleware
@@ -586,6 +587,265 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error fetching dashboard stats:", error);
       res.status(500).json({ message: "Failed to fetch dashboard stats" });
     }
+  });
+
+  // TEMPORARY: Clean duplicate appointments
+  app.post("/api/admin/clean-duplicates", isAuthenticated, async (req, res) => {
+    try {
+      console.log('🧹 Cleaning duplicate appointments...');
+      
+      // Get all appointments
+      const allAppointments = await storage.getAllAppointments();
+      console.log(`📊 Total appointments before cleanup: ${allAppointments.length}`);
+      
+      // Group by key fields to find duplicates
+      const appointmentMap = new Map();
+      const duplicates = [];
+      
+      allAppointments.forEach(appointment => {
+        const key = `${appointment.date}-${appointment.startTime}-${appointment.clientId}-${appointment.stylistId}-${appointment.serviceId}`;
+        
+        if (appointmentMap.has(key)) {
+          const existing = appointmentMap.get(key);
+          if (!duplicates.find(d => d.key === key)) {
+            duplicates.push({
+              key,
+              appointments: [existing, appointment]
+            });
+          } else {
+            duplicates.find(d => d.key === key).appointments.push(appointment);
+          }
+        } else {
+          appointmentMap.set(key, appointment);
+        }
+      });
+      
+      if (duplicates.length === 0) {
+        return res.json({ message: "No duplicates found", deleted: 0 });
+      }
+      
+      console.log(`❌ Found ${duplicates.length} groups of duplicates`);
+      
+      let totalDeleted = 0;
+      
+      // For each group of duplicates, keep the first one and delete the rest
+      for (const group of duplicates) {
+        const appointments = group.appointments;
+        const keepAppointment = appointments[0]; // Keep the first (oldest) appointment
+        const deleteAppointments = appointments.slice(1); // Delete the rest
+        
+        console.log(`🔄 Group: ${group.key} - Keep ID ${keepAppointment.id}, delete ${deleteAppointments.map(a => a.id).join(', ')}`);
+        
+        // Delete the duplicate appointments
+        for (const deleteAppointment of deleteAppointments) {
+          await storage.deleteAppointment(deleteAppointment.id);
+          totalDeleted++;
+        }
+      }
+      
+      console.log(`✅ Cleanup completed! Deleted ${totalDeleted} duplicate appointments`);
+      
+      res.json({ 
+        message: "Duplicates cleaned successfully", 
+        deleted: totalDeleted,
+        duplicateGroups: duplicates.length
+      });
+      
+    } catch (error) {
+      console.error("Error cleaning duplicates:", error);
+      res.status(500).json({ message: "Failed to clean duplicates" });
+    }
+  });
+
+  // Serve the cleanup page
+  app.get("/admin/clean", (req, res) => {
+    res.sendFile(path.join(process.cwd(), "clean-duplicates.html"));
+  });
+
+  // Simple GET endpoint to clean duplicates (for testing)
+  app.get("/api/admin/clean-duplicates-simple", isAuthenticated, async (req, res) => {
+    try {
+      console.log('🧹 Simple cleanup starting...');
+      
+      const allAppointments = await storage.getAllAppointments();
+      console.log(`📊 Total appointments: ${allAppointments.length}`);
+      
+      // Find duplicates
+      const seen = new Set();
+      const toDelete = [];
+      
+      for (const appointment of allAppointments) {
+        const key = `${appointment.date}-${appointment.startTime}-${appointment.clientId}-${appointment.stylistId}-${appointment.serviceId}`;
+        
+        if (seen.has(key)) {
+          toDelete.push(appointment.id);
+          console.log(`❌ Duplicate found: ID ${appointment.id}`);
+        } else {
+          seen.add(key);
+        }
+      }
+      
+      console.log(`🗑️ Deleting ${toDelete.length} duplicates...`);
+      
+      // Delete duplicates
+      for (const id of toDelete) {
+        await storage.deleteAppointment(id);
+        console.log(`🗑️ Deleted ID: ${id}`);
+      }
+      
+      res.json({ 
+        success: true,
+        message: `Deleted ${toDelete.length} duplicates`,
+        deleted: toDelete.length,
+        total: allAppointments.length
+      });
+      
+    } catch (error) {
+      console.error("Error in simple cleanup:", error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
+  // Recurring reminders routes
+  app.get("/api/recurring-reminders", isAuthenticated, async (req, res) => {
+    try {
+      const reminders = await storage.getAllRecurringReminders();
+      res.json(reminders);
+    } catch (error) {
+      console.error("Error fetching recurring reminders:", error);
+      res.status(500).json({ message: "Failed to fetch recurring reminders" });
+    }
+  });
+
+  app.get("/api/recurring-reminders/:id", isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const reminder = await storage.getRecurringReminder(id);
+      if (!reminder) {
+        return res.status(404).json({ message: "Recurring reminder not found" });
+      }
+      res.json(reminder);
+    } catch (error) {
+      console.error("Error fetching recurring reminder:", error);
+      res.status(500).json({ message: "Failed to fetch recurring reminder" });
+    }
+  });
+
+  app.get("/api/clients/:clientId/recurring-reminders", isAuthenticated, async (req, res) => {
+    try {
+      const clientId = parseInt(req.params.clientId);
+      const reminders = await storage.getClientRecurringReminders(clientId);
+      res.json(reminders);
+    } catch (error) {
+      console.error("Error fetching client recurring reminders:", error);
+      res.status(500).json({ message: "Failed to fetch client recurring reminders" });
+    }
+  });
+
+  app.post("/api/recurring-reminders", isAuthenticated, async (req, res) => {
+    try {
+      const validatedData = insertRecurringReminderSchema.parse(req.body);
+      const reminder = await storage.createRecurringReminder(validatedData);
+      res.status(201).json(reminder);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid data", errors: error.errors });
+      }
+      console.error("Error creating recurring reminder:", error);
+      res.status(500).json({ message: "Failed to create recurring reminder" });
+    }
+  });
+
+  app.put("/api/recurring-reminders/:id", isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const validatedData = insertRecurringReminderSchema.partial().parse(req.body);
+      const reminder = await storage.updateRecurringReminder(id, validatedData);
+      if (!reminder) {
+        return res.status(404).json({ message: "Recurring reminder not found" });
+      }
+      res.json(reminder);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid data", errors: error.errors });
+      }
+      console.error("Error updating recurring reminder:", error);
+      res.status(500).json({ message: "Failed to update recurring reminder" });
+    }
+  });
+
+  app.delete("/api/recurring-reminders/:id", isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const success = await storage.deleteRecurringReminder(id);
+      if (!success) {
+        return res.status(404).json({ message: "Recurring reminder not found" });
+      }
+      res.json({ message: "Recurring reminder deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting recurring reminder:", error);
+      res.status(500).json({ message: "Failed to delete recurring reminder" });
+    }
+  });
+
+  // Get active reminders that need to be sent
+  app.get("/api/recurring-reminders/active", isAuthenticated, async (req, res) => {
+    try {
+      const activeReminders = await storage.getActiveRecurringReminders();
+      res.json(activeReminders);
+    } catch (error) {
+      console.error("Error fetching active recurring reminders:", error);
+      res.status(500).json({ message: "Failed to fetch active recurring reminders" });
+    }
+  });
+
+  // Update next reminder date after sending
+  app.post("/api/recurring-reminders/:id/update-next-date", isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { nextDate } = req.body;
+      const success = await storage.updateNextReminderDate(id, nextDate);
+      if (!success) {
+        return res.status(404).json({ message: "Recurring reminder not found" });
+      }
+      res.json({ message: "Next reminder date updated successfully" });
+    } catch (error) {
+      console.error("Error updating next reminder date:", error);
+      res.status(500).json({ message: "Failed to update next reminder date" });
+    }
+  });
+
+  // Recurring reminder service management routes
+  app.get("/api/recurring-reminders/service/status", isAuthenticated, async (req, res) => {
+    try {
+      const { recurringReminderService } = await import("./services/recurring-reminder-service");
+      const status = recurringReminderService.getStatus();
+      res.json(status);
+    } catch (error) {
+      console.error("Error getting service status:", error);
+      res.status(500).json({ message: "Failed to get service status" });
+    }
+  });
+
+  app.post("/api/recurring-reminders/service/trigger", isAuthenticated, async (req, res) => {
+    try {
+      const { recurringReminderService } = await import("./services/recurring-reminder-service");
+      await recurringReminderService.triggerCheck();
+      res.json({ message: "Reminder check triggered successfully" });
+    } catch (error) {
+      console.error("Error triggering reminder check:", error);
+      res.status(500).json({ message: "Failed to trigger reminder check" });
+    }
+  });
+
+  // Health check endpoint for Docker
+  app.get("/api/health", (req, res) => {
+    res.status(200).json({ 
+      status: "healthy", 
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      environment: process.env.NODE_ENV || "development"
+    });
   });
 
   const httpServer = createServer(app);

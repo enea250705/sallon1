@@ -12,8 +12,9 @@ import Dashboard from "@/pages/dashboard";
 import Calendar from "@/pages/calendar";
 import Services from "@/pages/services";
 import Stylists from "@/pages/stylists";
-import Staff from "@/pages/staff";
+import Clients from "@/pages/clients";
 import Settings from "@/pages/settings";
+import RecurringReminders from "@/pages/recurring-reminders";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -39,9 +40,10 @@ function Router() {
           <Route path="/" component={Dashboard} />
           <Route path="/dashboard" component={Dashboard} />
           <Route path="/calendar" component={Calendar} />
+          <Route path="/clients" component={Clients} />
           <Route path="/services" component={Services} />
           <Route path="/stylists" component={Stylists} />
-          <Route path="/staff" component={Staff} />
+          <Route path="/recurring-reminders" component={RecurringReminders} />
           <Route path="/settings" component={Settings} />
           <Route component={NotFound} />
         </>

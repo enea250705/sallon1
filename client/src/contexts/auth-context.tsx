@@ -14,6 +14,7 @@ type AuthContextType = {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  login: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 };
 
@@ -31,6 +32,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setIsAuthenticated(!!user && !error);
   }, [user, error]);
+
+  const login = async (username: string, password: string) => {
+    const response = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify({ username, password }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || "Login failed");
+    }
+
+    // Refresh user data after successful login
+    await refetch();
+    setIsAuthenticated(true);
+  };
 
   const logout = async () => {
     try {
@@ -51,6 +72,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user: user as User | null,
         isLoading,
         isAuthenticated,
+        login,
         logout,
       }}
     >

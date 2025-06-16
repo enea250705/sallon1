@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Pulizia Duplicati</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        button { padding: 10px 20px; font-size: 16px; margin: 10px; }
+        .result { margin-top: 20px; padding: 10px; border: 1px solid #ccc; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+    </style>
+</head>
+<body>
+    <h1>🧹 Pulizia Appuntamenti Duplicati</h1>
+    
+    <button onclick="cleanDuplicates()">Pulisci Duplicati</button>
+    <button onclick="checkAppointments()">Controlla Appuntamenti Oggi</button>
+    
+    <div id="result"></div>
+
+    <script>
+        async function cleanDuplicates() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '⏳ Pulizia in corso...';
+            
+            try {
+                const response = await fetch('/api/admin/clean-duplicates', {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <div class="result success">
+                            <h3>✅ Pulizia completata!</h3>
+                            <p>Eliminati: ${data.deleted} appuntamenti duplicati</p>
+                            <p>Gruppi di duplicati trovati: ${data.duplicateGroups}</p>
+                            <p>${data.message}</p>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="result error">
+                            <h3>❌ Errore</h3>
+                            <p>${data.message}</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="result error">
+                        <h3>❌ Errore di connessione</h3>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+        
+        async function checkAppointments() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '⏳ Controllo appuntamenti...';
+            
+            try {
+                const today = new Date().toISOString().split('T')[0];
+                const response = await fetch(`/api/appointments?date=${today}`, {
+                    credentials: 'include'
+                });
+                
+                const appointments = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <div class="result success">
+                            <h3>📅 Appuntamenti di oggi (${today})</h3>
+                            <p>Totale: ${appointments.length}</p>
+                            <ul>
+                                ${appointments.map(apt => `
+                                    <li>ID: ${apt.id} | ${apt.startTime} - ${apt.client.firstName} ${apt.client.lastName} - ${apt.service.name} - ${apt.stylist.name}</li>
+                                `).join('')}
+                            </ul>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="result error">
+                            <h3>❌ Errore</h3>
+                            <p>Impossibile recuperare gli appuntamenti</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="result error">
+                        <h3>❌ Errore di connessione</h3>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html> 

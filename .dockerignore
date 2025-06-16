@@ -1,0 +1,70 @@
+# Dependencies
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Production builds
+dist
+build
+.next
+
+# Environment files
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE files
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git
+.git
+.gitignore
+
+# Documentation
+README.md
+docs/
+
+# Test files
+coverage/
+.nyc_output
+*.test.js
+*.spec.js
+
+# Logs
+logs
+*.log
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Temporary files
+.tmp
+temp/
+
+# Development files
+.env.example
+docker-compose.yml
+docker-compose.*.yml
+deploy.sh
+deploy.bat
+init.sql
+
+# Migration scripts
+migrate-*.cjs
+create-*.sql
+
+# Deploy files
+DEPLOY.md
+deploy-config.env 

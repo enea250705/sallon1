@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Search, Phone, Mail, Edit, Trash2, User } from "lucide-react";
+import { Plus, Search, Phone, Mail, Edit, Trash2, User, Bell } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -332,6 +332,15 @@ export default function Clients() {
                       </div>
                     </div>
                     <div className="flex items-center space-x-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => window.open(`/recurring-reminders?client=${client.id}`, '_blank')}
+                        title="Gestisci promemoria ricorrenti"
+                        className="text-blue-600 hover:text-blue-700"
+                      >
+                        <Bell className="h-4 w-4" />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"

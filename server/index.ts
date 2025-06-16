@@ -1,7 +1,9 @@
+import "dotenv/config";
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { reminderScheduler } from "./services/reminderScheduler";
+import { recurringReminderService } from "./services/recurring-reminder-service";
 import session from "express-session";
 
 // Extend session data type
@@ -78,12 +80,12 @@ app.use((req, res, next) => {
   const port = 5000;
   // Start WhatsApp reminder scheduler
   reminderScheduler.startScheduler();
+  
+  // Start recurring reminder service
+  console.log("🔔 Initializing recurring reminder service...");
+  // The service starts automatically in its constructor
 
-  server.listen({
-    port,
-    host: "0.0.0.0",
-    reusePort: true,
-  }, () => {
+  server.listen(port, "localhost", () => {
     log(`serving on port ${port}`);
   });
 })();

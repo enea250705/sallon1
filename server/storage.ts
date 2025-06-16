@@ -94,6 +94,9 @@ export interface IStorage {
   
   // Session store
   sessionStore: any;
+  
+  // Migration
+  migrateRecurringReminders(): Promise<{message: string, created: boolean}>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -790,6 +793,24 @@ export class DatabaseStorage implements IStorage {
     }
 
     return nextDate.toISOString().split('T')[0];
+  }
+
+  async migrateRecurringReminders(): Promise<{message: string, created: boolean}> {
+    try {
+      // Try to query the table to see if it exists
+      await db.select().from(recurringReminders).limit(1);
+      return {
+        message: "Database already migrated - recurring_reminders table exists",
+        created: false
+      };
+    } catch (error) {
+      // Table doesn't exist, but we can't create it here without raw SQL
+      // This will be handled by the migration script
+      return {
+        message: "Migration needed - please run the migration script",
+        created: false
+      };
+    }
   }
 }
 

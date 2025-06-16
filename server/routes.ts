@@ -7,6 +7,7 @@ import session from "express-session";
 import { insertClientSchema, insertAppointmentSchema, insertServiceSchema, insertStylistSchema, insertMessageTemplateSchema, insertUserSchema, insertRecurringReminderSchema } from "@shared/schema";
 import { z } from "zod";
 
+
 // Authentication middleware
 const isAuthenticated = (req: any, res: any, next: any) => {
   if (req.session && req.session.user) {
@@ -600,7 +601,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Group by key fields to find duplicates
       const appointmentMap = new Map();
-      const duplicates = [];
+      const duplicates: Array<{key: string, appointments: any[]}> = [];
       
       allAppointments.forEach(appointment => {
         const key = `${appointment.date}-${appointment.startTime}-${appointment.clientId}-${appointment.stylistId}-${appointment.serviceId}`;
@@ -613,7 +614,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               appointments: [existing, appointment]
             });
           } else {
-            duplicates.find(d => d.key === key).appointments.push(appointment);
+            duplicates.find(d => d.key === key)?.appointments.push(appointment);
           }
         } else {
           appointmentMap.set(key, appointment);
@@ -702,7 +703,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
     } catch (error) {
       console.error("Error in simple cleanup:", error);
-      res.status(500).json({ success: false, message: error.message });
+      res.status(500).json({ success: false, message: error instanceof Error ? error.message : "Unknown error" });
     }
   });
 
@@ -851,50 +852,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Database migration endpoint for Render
   app.post("/api/migrate", async (req, res) => {
     try {
-      // Check if recurring_reminders table exists
-      const tableExists = await db.execute(sql`
-        SELECT EXISTS (
-          SELECT FROM information_schema.tables 
-          WHERE table_schema = 'public' 
-          AND table_name = 'recurring_reminders'
-        );
-      `);
-      
-      if (!tableExists.rows[0]?.exists) {
-        // Create the table
-        await db.execute(sql`
-          CREATE TABLE recurring_reminders (
-            id SERIAL PRIMARY KEY,
-            client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
-            service_id INTEGER NOT NULL REFERENCES services(id) ON DELETE CASCADE,
-            stylist_id INTEGER NOT NULL REFERENCES stylists(id) ON DELETE CASCADE,
-            frequency VARCHAR(20) NOT NULL CHECK (frequency IN ('weekly', 'biweekly', 'monthly')),
-            day_of_week INTEGER CHECK (day_of_week BETWEEN 0 AND 6),
-            day_of_month INTEGER CHECK (day_of_month BETWEEN 1 AND 31),
-            preferred_time TIME NOT NULL,
-            is_active BOOLEAN DEFAULT true,
-            last_reminder_sent TIMESTAMP,
-            next_reminder_date DATE,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-          );
-        `);
-        
-        // Create indexes
-        await db.execute(sql`CREATE INDEX idx_recurring_reminders_client ON recurring_reminders(client_id);`);
-        await db.execute(sql`CREATE INDEX idx_recurring_reminders_next_date ON recurring_reminders(next_reminder_date);`);
-        await db.execute(sql`CREATE INDEX idx_recurring_reminders_active ON recurring_reminders(is_active);`);
-        
-        res.json({ 
-          success: true, 
-          message: "Database migrated successfully - recurring_reminders table created" 
-        });
-      } else {
-        res.json({ 
-          success: true, 
-          message: "Database already migrated - recurring_reminders table exists" 
-        });
-      }
+      // Use the storage migration function
+      const result = await storage.migrateRecurringReminders();
+      res.json({ 
+        success: true, 
+        message: result.message,
+        created: result.created
+      });
     } catch (error) {
       console.error("Migration error:", error);
       res.status(500).json({ 

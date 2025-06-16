@@ -67,42 +67,42 @@ export default function Login() {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="space-y-2">
+            <div className="space-y-2">
                 <Label htmlFor="username" className="text-sm font-medium text-gray-700">
                   Username
                 </Label>
                 <div className="relative">
                   <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                  <Input
-                    id="username"
-                    type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    required
-                    disabled={isLoading}
+              <Input
+                id="username"
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                required
+                disabled={isLoading}
                     className="pl-10 h-12 border-gray-200 focus:border-pink-500 focus:ring-pink-500 rounded-lg"
                     placeholder="Inserisci il tuo username"
-                  />
-                </div>
+              />
+            </div>
               </div>
 
-              <div className="space-y-2">
+            <div className="space-y-2">
                 <Label htmlFor="password" className="text-sm font-medium text-gray-700">
                   Password
                 </Label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                  <Input
-                    id="password"
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    disabled={isLoading}
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                disabled={isLoading}
                     className="pl-10 h-12 border-gray-200 focus:border-pink-500 focus:ring-pink-500 rounded-lg"
                     placeholder="Inserisci la tua password"
-                  />
-                </div>
+              />
+            </div>
               </div>
 
               <Button 
@@ -121,8 +121,8 @@ export default function Login() {
                     <Heart className="h-5 w-5" />
                   </div>
                 )}
-              </Button>
-            </form>
+            </Button>
+          </form>
 
             {/* Demo Credentials */}
             <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">

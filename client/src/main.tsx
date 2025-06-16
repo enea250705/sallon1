@@ -14,10 +14,10 @@ robotoFontLink.rel = "stylesheet";
 document.head.appendChild(robotoFontLink);
 
 // Add page title and meta description
-document.title = "Da Vittorino - Sistema di Gestione Personale";
+document.title = "Salone di Bellezza - Gestione Appuntamenti";
 const metaDesc = document.createElement("meta");
 metaDesc.name = "description";
-metaDesc.content = "Sistema avanzato di gestione personale, pianificazione turni, ferie e documentazione aziendale. Ottimizza la forza lavoro del ristorante Da Vittorino.";
+metaDesc.content = "Sistema di gestione per salone di bellezza: appuntamenti, clienti, servizi e promemoria automatici. Ottimizzato per iPad e dispositivi mobili.";
 document.head.appendChild(metaDesc);
 
 // Initialize the React application

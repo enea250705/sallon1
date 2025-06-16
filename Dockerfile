@@ -44,8 +44,7 @@ COPY --from=builder /app/shared ./shared
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=builder /app/package*.json ./
 
-# Copy environment file template
-COPY .env.example .env
+# Environment variables will be provided by Render
 
 # Change ownership to nodejs user
 RUN chown -R nextjs:nodejs /app

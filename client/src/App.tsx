@@ -29,25 +29,16 @@ function Router() {
 
   return (
     <Switch>
-      {!isAuthenticated ? (
-        <>
-          <Route path="/" component={Login} />
-          <Route path="/login" component={Login} />
-          <Route component={NotFound} />
-        </>
-      ) : (
-        <>
-          <Route path="/" component={Dashboard} />
-          <Route path="/dashboard" component={Dashboard} />
-          <Route path="/calendar" component={Calendar} />
-          <Route path="/clients" component={Clients} />
-          <Route path="/services" component={Services} />
-          <Route path="/stylists" component={Stylists} />
-          <Route path="/recurring-reminders" component={RecurringReminders} />
-          <Route path="/settings" component={Settings} />
-          <Route component={NotFound} />
-        </>
-      )}
+      <Route path="/" component={!isAuthenticated ? Login : Dashboard} />
+      <Route path="/login" component={Login} />
+      <Route path="/dashboard" component={isAuthenticated ? Dashboard : Login} />
+      <Route path="/calendar" component={isAuthenticated ? Calendar : Login} />
+      <Route path="/clients" component={isAuthenticated ? Clients : Login} />
+      <Route path="/services" component={isAuthenticated ? Services : Login} />
+      <Route path="/stylists" component={isAuthenticated ? Stylists : Login} />
+      <Route path="/recurring-reminders" component={isAuthenticated ? RecurringReminders : Login} />
+      <Route path="/settings" component={isAuthenticated ? Settings : Login} />
+      <Route component={NotFound} />
     </Switch>
   );
 }

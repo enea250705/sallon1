@@ -261,7 +261,7 @@ export default function Calendar() {
       updateExistingAppointment(data);
     } else {
       // Create new appointment
-      createAppointmentMutation.mutate(data);
+    createAppointmentMutation.mutate(data);
     }
   };
 
@@ -628,13 +628,13 @@ export default function Calendar() {
                         name="clientName"
                         render={({ field }) => (
                           <FormItem>
-                            <FormControl>
+                              <FormControl>
                               <input 
                                 {...field}
                                 placeholder="Nome Cliente" 
                                 className="w-full h-12 px-4 bg-gray-100 border-0 rounded-full text-base placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
                               />
-                            </FormControl>
+                              </FormControl>
                           </FormItem>
                         )}
                       />
@@ -957,51 +957,51 @@ export default function Calendar() {
 
                       {/* Hidden fields for form validation */}
                       <div className="hidden">
-                        <FormField
-                          control={form.control}
+                  <FormField
+                    control={form.control}
                           name="date"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormControl>
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormControl>
                                 <Input type="date" {...field} />
-                              </FormControl>
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
                           name="startHour"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormControl>
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormControl>
                                 <Input type="number" {...field} />
-                              </FormControl>
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
                           name="startMinute"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormControl>
+                    render={({ field }) => (
+                      <FormItem>
+                          <FormControl>
                                 <Input type="number" {...field} />
-                              </FormControl>
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
+                          </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
                           name="clientType"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormControl>
+                    render={({ field }) => (
+                      <FormItem>
+                          <FormControl>
                                 <Input {...field} value="new" />
-                              </FormControl>
-                            </FormItem>
-                          )}
-                        />
-                      </div>
+                          </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  </div>
                 </form>
               </Form>
                 </div>
@@ -1112,9 +1112,9 @@ export default function Calendar() {
                 </div>
               </div>
             ) : (
-              // Professional Day View Grid - Optimized for iPad
-              <div className="w-full overflow-x-auto">
-                <div className="min-w-full" style={{ minWidth: filteredStylists.length > 2 ? '1000px' : '800px' }}>
+              // Professional Day View Grid - Full-width responsive for iPad
+              <div className="w-full">
+                <div className="w-full">
                   {/* Header with stylist names */}
                   <div className="grid border-b border-gray-300" style={{ gridTemplateColumns: '120px repeat(' + filteredStylists.length + ', 1fr)' }}>
                     <div className="p-4 bg-gradient-to-r from-gray-100 to-gray-200 border-r border-gray-300 font-bold text-base text-gray-800 flex items-center justify-center">

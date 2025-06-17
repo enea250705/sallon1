@@ -87,9 +87,58 @@ app.use((req, res, next) => {
   // Bind to 0.0.0.0 for Render deployment
   const host = process.env.NODE_ENV === "production" ? "0.0.0.0" : "localhost";
   
-  server.listen(port, host, () => {
+  const serverInstance = server.listen(port, host, () => {
     log(`🚀 Server running on ${host}:${port}`);
     console.log(`🌐 Environment: ${process.env.NODE_ENV || "development"}`);
     console.log(`📡 Health check: http://${host}:${port}/api/health`);
+  });
+
+  // Configure server timeouts to prevent 502 Bad Gateway on Render
+  if (process.env.NODE_ENV === "production") {
+    // Set keepAliveTimeout to 120 seconds (120000ms)
+    serverInstance.keepAliveTimeout = 120000;
+    // Set headersTimeout to be higher than keepAliveTimeout
+    serverInstance.headersTimeout = 120000 + 1000;
+    
+    console.log("⚙️ Production timeouts configured:");
+    console.log(`   - keepAliveTimeout: ${serverInstance.keepAliveTimeout}ms`);
+    console.log(`   - headersTimeout: ${serverInstance.headersTimeout}ms`);
+  }
+
+  // Graceful shutdown handling to prevent abrupt termination
+  const gracefulShutdown = (signal: string) => {
+    console.log(`\n🛑 Received ${signal}. Starting graceful shutdown...`);
+    
+    serverInstance.close((err) => {
+      if (err) {
+        console.error("❌ Error during server shutdown:", err);
+        process.exit(1);
+      }
+      
+      console.log("✅ Server closed gracefully");
+      process.exit(0);
+    });
+
+    // Force close after 30 seconds
+    setTimeout(() => {
+      console.log("⚠️ Force closing server after timeout");
+      process.exit(1);
+    }, 30000);
+  };
+
+  // Handle process termination signals
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+  process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+  // Handle uncaught exceptions to prevent crashes
+  process.on('uncaughtException', (error) => {
+    console.error('❌ Uncaught Exception:', error);
+    gracefulShutdown('uncaughtException');
+  });
+
+  process.on('unhandledRejection', (reason, promise) => {
+    console.error('❌ Unhandled Promise Rejection:', reason);
+    console.error('Promise:', promise);
+    gracefulShutdown('unhandledRejection');
   });
 })();

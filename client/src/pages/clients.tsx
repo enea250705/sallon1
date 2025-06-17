@@ -7,12 +7,15 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Textarea } from "@/components/ui/textarea";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Search, Phone, Mail, Edit, Trash2, User, Bell } from "lucide-react";
+import { Plus, Search, Phone, Mail, Edit, Trash2, User, Bell, ChevronDown, ChevronUp, Calendar, Clock, Scissors } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { format } from "date-fns";
+import { it } from "date-fns/locale";
 
 const clientSchema = z.object({
   firstName: z.string().min(1, "Nome è richiesto"),
@@ -32,6 +35,24 @@ type Client = {
   createdAt: string;
   updatedAt: string;
   isActive: boolean;
+};
+
+type Appointment = {
+  id: number;
+  date: string;
+  startTime: string;
+  endTime: string;
+  service: {
+    id: number;
+    name: string;
+    duration: number;
+    price: number;
+  };
+  stylist: {
+    id: number;
+    name: string;
+  };
+  notes: string | null;
 };
 
 export default function Clients() {
@@ -298,9 +319,10 @@ export default function Clients() {
                 {filteredClients.map((client) => (
                   <div
                     key={client.id}
-                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                    className="border rounded-lg p-4 hover:bg-gray-50 transition-colors"
                   >
-                    <div className="flex-1">
+                    {/* Client Header */}
+                    <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center space-x-4">
                         <div className="bg-gradient-to-r from-pink-400 to-purple-500 p-3 rounded-full">
                           <span className="text-white font-semibold text-sm">
@@ -323,40 +345,48 @@ export default function Clients() {
                               </div>
                             )}
                           </div>
-                          {client.notes && (
-                            <p className="text-sm text-gray-600 mt-2 line-clamp-2">
-                              {client.notes}
-                            </p>
-                          )}
                         </div>
                       </div>
+                      <div className="flex items-center space-x-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => window.open(`/recurring-reminders?client=${client.id}`, '_blank')}
+                          title="Gestisci promemoria ricorrenti"
+                          className="text-blue-600 hover:text-blue-700"
+                        >
+                          <Bell className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleEdit(client)}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDelete(client.id)}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => window.open(`/recurring-reminders?client=${client.id}`, '_blank')}
-                        title="Gestisci promemoria ricorrenti"
-                        className="text-blue-600 hover:text-blue-700"
-                      >
-                        <Bell className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleEdit(client)}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDelete(client.id)}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
+
+                    {/* Client Notes */}
+                    {client.notes && (
+                      <div className="mb-4">
+                        <p className="text-sm text-gray-600 bg-blue-50 p-3 rounded-lg">
+                          <span className="font-medium text-blue-900">Note: </span>
+                          {client.notes}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Appointment History Component */}
+                    <ClientAppointmentHistory clientId={client.id} />
                   </div>
                 ))}
               </div>
@@ -365,5 +395,95 @@ export default function Clients() {
         </Card>
       </div>
     </Layout>
+  );
+}
+
+// Component to show appointment history for a client
+function ClientAppointmentHistory({ clientId }: { clientId: number }) {
+  const [isOpen, setIsOpen] = useState(false);
+  
+  const { data: appointments, isLoading } = useQuery<Appointment[]>({
+    queryKey: ["/api/appointments/client", clientId],
+    queryFn: async () => {
+      const response = await fetch(`/api/appointments?clientId=${clientId}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return response.json();
+    },
+    enabled: isOpen, // Only fetch when expanded
+  });
+
+  const appointmentCount = appointments?.length || 0;
+  const totalSpent = appointments?.reduce((sum, apt) => sum + apt.service.price, 0) || 0;
+
+  return (
+    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+      <CollapsibleTrigger asChild>
+        <Button variant="ghost" className="w-full justify-between p-0 h-auto">
+          <div className="flex items-center space-x-2 text-sm text-gray-600">
+            <Calendar className="h-4 w-4" />
+            <span>Storico Appuntamenti ({appointmentCount})</span>
+            {appointmentCount > 0 && (
+              <span className="text-green-600 font-medium">
+                €{(totalSpent / 100).toFixed(2)}
+              </span>
+            )}
+          </div>
+          {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+        </Button>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="mt-3">
+        {isLoading ? (
+          <div className="flex justify-center py-4">
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-pink-600"></div>
+          </div>
+        ) : !appointments || appointments.length === 0 ? (
+          <div className="text-center py-4 text-gray-500 text-sm">
+            <Calendar className="h-8 w-8 mx-auto mb-2 opacity-30" />
+            <p>Nessun appuntamento trovato</p>
+          </div>
+        ) : (
+          <div className="space-y-2 max-h-60 overflow-y-auto">
+            {appointments
+              .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+              .map((appointment) => (
+                <div
+                  key={appointment.id}
+                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg text-sm"
+                >
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-2">
+                      <div className="font-medium text-gray-900">
+                        {format(new Date(appointment.date), "d MMM yyyy", { locale: it })}
+                      </div>
+                      <div className="flex items-center space-x-1 text-gray-600">
+                        <Clock className="h-3 w-3" />
+                        <span>{appointment.startTime.slice(0, 5)}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2 mt-1">
+                      <div className="flex items-center space-x-1 text-gray-600">
+                        <Scissors className="h-3 w-3" />
+                        <span>{appointment.service.name}</span>
+                      </div>
+                      <span className="text-gray-400">•</span>
+                      <span className="text-gray-600">{appointment.stylist.name}</span>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-medium text-green-600">
+                      €{(appointment.service.price / 100).toFixed(2)}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {appointment.service.duration}min
+                    </div>
+                  </div>
+                </div>
+              ))}
+          </div>
+        )}
+      </CollapsibleContent>
+    </Collapsible>
   );
 }

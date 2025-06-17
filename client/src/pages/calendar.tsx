@@ -20,13 +20,26 @@ import { DraggableAppointment } from "@/components/calendar/draggable-appointmen
 import { DroppableDay } from "@/components/calendar/droppable-day";
 
 const appointmentSchema = z.object({
-  clientName: z.string().min(1, "Nome cliente è richiesto"),
-  clientPhone: z.string().min(1, "Numero di telefono è richiesto"),
+  clientType: z.enum(["new", "existing"], { required_error: "Tipo cliente è richiesto" }),
+  clientId: z.number().optional(),
+  clientName: z.string().optional(),
+  clientPhone: z.string().optional(),
   stylistId: z.number({ required_error: "Stilista è richiesto" }),
   serviceId: z.number({ required_error: "Servizio è richiesto" }),
   date: z.string().min(1, "Data è richiesta"),
   startHour: z.number({ required_error: "Ora è richiesta" }),
   startMinute: z.number({ required_error: "Minuti sono richiesti" }),
+}).refine((data) => {
+  if (data.clientType === "new") {
+    return data.clientName && data.clientName.length > 0 && data.clientPhone && data.clientPhone.length > 0;
+  }
+  if (data.clientType === "existing") {
+    return data.clientId && data.clientId > 0;
+  }
+  return false;
+}, {
+  message: "Dati cliente richiesti",
+  path: ["clientName"]
 });
 
 type AppointmentForm = z.infer<typeof appointmentSchema>;
@@ -42,6 +55,7 @@ export default function Calendar() {
   const form = useForm<AppointmentForm>({
     resolver: zodResolver(appointmentSchema),
     defaultValues: {
+      clientType: "new",
       clientName: "",
       clientPhone: "",
       date: format(selectedDate, "yyyy-MM-dd"),
@@ -49,6 +63,9 @@ export default function Calendar() {
       startMinute: 0,
     },
   });
+
+  // Watch for clientType changes to clear other fields
+  const clientType = form.watch("clientType");
 
   // Fetch appointments based on view mode
   const { data: appointments, isLoading } = useQuery<any[]>({
@@ -81,21 +98,32 @@ export default function Calendar() {
     queryKey: ["/api/services"],
   });
 
+  const { data: clients } = useQuery<any[]>({
+    queryKey: ["/api/clients"],
+  });
+
   const createAppointmentMutation = useMutation({
     mutationFn: async (data: AppointmentForm) => {
-      // Create client with just the name (split into first and last name)
-      const nameParts = data.clientName.split(' ');
-      const firstName = nameParts[0] || data.clientName;
-      const lastName = nameParts.slice(1).join(' ') || "";
+      let clientId: number;
       
-      const clientResponse = await apiRequest("POST", "/api/clients", {
-        firstName,
-        lastName,
-        phone: data.clientPhone,
-        email: "",
-        notes: "",
-      });
-      const newClient = await clientResponse.json();
+      if (data.clientType === "new") {
+        // Create client with just the name (split into first and last name)
+        const nameParts = data.clientName!.split(' ');
+        const firstName = nameParts[0] || data.clientName!;
+        const lastName = nameParts.slice(1).join(' ') || "";
+        
+        const clientResponse = await apiRequest("POST", "/api/clients", {
+          firstName,
+          lastName,
+          phone: data.clientPhone!,
+          email: "",
+          notes: "",
+        });
+        const newClient = await clientResponse.json();
+        clientId = newClient.id;
+      } else {
+        clientId = data.clientId!;
+      }
 
       // Calculate start and end times
       const startTime = `${data.startHour.toString().padStart(2, '0')}:${data.startMinute.toString().padStart(2, '0')}`;
@@ -110,9 +138,9 @@ export default function Calendar() {
       const endMins = endTimeMinutes % 60;
       const endTime = `${endHours.toString().padStart(2, '0')}:${endMins.toString().padStart(2, '0')}`;
 
-      // Create the appointment with the new client
+      // Create the appointment with the client
       return apiRequest("POST", "/api/appointments", {
-        clientId: newClient.id,
+        clientId: clientId,
         stylistId: data.stylistId,
         serviceId: data.serviceId,
         date: data.date,
@@ -385,32 +413,87 @@ export default function Calendar() {
                       />
                     </div>
                   </div>
+                  
+                  {/* Tipo Cliente Selection */}
                   <FormField
                     control={form.control}
-                    name="clientName"
+                    name="clientType"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Nome Cliente</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Inserisci nome cliente" {...field} />
-                        </FormControl>
+                        <FormLabel>Tipo Cliente</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Seleziona tipo cliente" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="new">Nuovo Cliente</SelectItem>
+                            <SelectItem value="existing">Cliente Esistente</SelectItem>
+                          </SelectContent>
+                        </Select>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-                  <FormField
-                    control={form.control}
-                    name="clientPhone"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Numero di Telefono</FormLabel>
-                        <FormControl>
-                          <Input placeholder="+39 123 456 7890" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+
+                  {/* Conditional Client Fields */}
+                  {clientType === "existing" ? (
+                    <FormField
+                      control={form.control}
+                      name="clientId"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Seleziona Cliente</FormLabel>
+                          <Select onValueChange={(value) => field.onChange(Number(value))}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Scegli dalla rubrica" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {clients?.map((client: any) => (
+                                <SelectItem key={client.id} value={client.id.toString()}>
+                                  {client.firstName} {client.lastName} - {client.phone}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  ) : (
+                    <>
+                      <FormField
+                        control={form.control}
+                        name="clientName"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Nome Cliente</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Inserisci nome cliente" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="clientPhone"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Numero di Telefono</FormLabel>
+                            <FormControl>
+                              <Input placeholder="+39 123 456 7890" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </>
+                  )}
+                  
                   <FormField
                     control={form.control}
                     name="stylistId"

@@ -1,29 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Layout } from "@/components/layout/layout";
-import { Users, Calendar, Scissors, Clock, Plus, Trash2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
-import { useState } from "react";
-
-const quickAppointmentSchema = z.object({
-  clientName: z.string().min(1, "Nome cliente è richiesto"),
-  stylistId: z.number({ required_error: "Stilista è richiesto" }),
-  serviceId: z.number({ required_error: "Servizio è richiesto" }),
-  date: z.string().min(1, "Data è richiesta"),
-  startHour: z.number({ required_error: "Ora è richiesta" }),
-  startMinute: z.number({ required_error: "Minuti sono richiesti" }),
-});
-
-type QuickAppointmentForm = z.infer<typeof quickAppointmentSchema>;
+import { Users, Calendar, Scissors, Clock } from "lucide-react";
 
 type DashboardStats = {
   totalClients: number;
@@ -34,19 +12,6 @@ type DashboardStats = {
 };
 
 export default function Dashboard() {
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-
-  const form = useForm<QuickAppointmentForm>({
-    resolver: zodResolver(quickAppointmentSchema),
-    defaultValues: {
-      clientName: "",
-      date: new Date().toISOString().split('T')[0],
-      startHour: 9,
-      startMinute: 0,
-    },
-  });
 
   const { data: stats, isLoading } = useQuery<DashboardStats>({
     queryKey: ["/api/dashboard/stats"],
@@ -55,104 +20,6 @@ export default function Dashboard() {
   const { data: todayAppointments, isLoading: appointmentsLoading } = useQuery({
     queryKey: ["/api/appointments", { date: new Date().toISOString().split('T')[0] }],
   });
-
-  const { data: stylists } = useQuery<any[]>({
-    queryKey: ["/api/stylists"],
-  });
-
-  const { data: services } = useQuery<any[]>({
-    queryKey: ["/api/services"],
-  });
-
-  const createAppointmentMutation = useMutation({
-    mutationFn: async (data: QuickAppointmentForm) => {
-      // Create client with just the name (split into first and last name)
-      const nameParts = data.clientName.split(' ');
-      const firstName = nameParts[0] || data.clientName;
-      const lastName = nameParts.slice(1).join(' ') || "";
-      
-      const clientResponse = await apiRequest("POST", "/api/clients", {
-        firstName,
-        lastName,
-        phone: "",
-        email: "",
-        notes: "",
-      });
-      const newClient = await clientResponse.json();
-
-      // Calculate start and end times
-      const startTime = `${data.startHour.toString().padStart(2, '0')}:${data.startMinute.toString().padStart(2, '0')}`;
-      const startTimeMinutes = data.startHour * 60 + data.startMinute;
-      
-      // Get service duration
-      const service = services?.find(s => s.id === data.serviceId);
-      const duration = service?.duration || 30; // default to 30 minutes if not found
-      
-      const endTimeMinutes = startTimeMinutes + duration;
-      const endHours = Math.floor(endTimeMinutes / 60);
-      const endMins = endTimeMinutes % 60;
-      const endTime = `${endHours.toString().padStart(2, '0')}:${endMins.toString().padStart(2, '0')}`;
-
-      // Create the appointment with the new client
-      return apiRequest("POST", "/api/appointments", {
-        clientId: newClient.id,
-        stylistId: data.stylistId,
-        serviceId: data.serviceId,
-        date: data.date,
-        startTime: startTime,
-        endTime: endTime,
-        notes: "",
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/appointments"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/clients"] });
-      setIsDialogOpen(false);
-      form.reset();
-      toast({ title: "Appuntamento creato con successo" });
-    },
-    onError: () => {
-      toast({ 
-        title: "Errore", 
-        description: "Impossibile creare l'appuntamento",
-        variant: "destructive" 
-      });
-    },
-  });
-
-  const onSubmit = (data: QuickAppointmentForm) => {
-    createAppointmentMutation.mutate(data);
-  };
-
-
-
-  const deleteAppointmentMutation = useMutation({
-    mutationFn: async (appointmentId: number) => {
-      return apiRequest("DELETE", `/api/appointments/${appointmentId}`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/appointments"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
-      toast({ 
-        title: "Appuntamento cancellato", 
-        description: "L'appuntamento è stato cancellato con successo" 
-      });
-    },
-    onError: () => {
-      toast({ 
-        title: "Errore", 
-        description: "Impossibile cancellare l'appuntamento",
-        variant: "destructive" 
-      });
-    },
-  });
-
-  const cancelAppointment = (appointmentId: number, clientName: string) => {
-    if (confirm(`Sei sicuro di voler cancellare l'appuntamento di ${clientName}?`)) {
-      deleteAppointmentMutation.mutate(appointmentId);
-    }
-  };
 
   return (
     <Layout>
@@ -213,178 +80,6 @@ export default function Dashboard() {
           </Card>
         </div>
 
-        {/* Quick Appointment Creation */}
-        <Card className="shadow-lg border-0">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-xl">Nuovo Appuntamento</CardTitle>
-                <CardDescription>
-                  Crea rapidamente un nuovo appuntamento
-                </CardDescription>
-              </div>
-              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Crea Appuntamento
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-[500px]">
-                  <DialogHeader>
-                    <DialogTitle>Nuovo Appuntamento</DialogTitle>
-                    <DialogDescription>
-                      Inserisci i dettagli per creare un nuovo appuntamento.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <Form {...form}>
-                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <FormField
-                          control={form.control}
-                          name="date"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Data</FormLabel>
-                              <FormControl>
-                                <Input type="date" {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <div className="grid grid-cols-2 gap-2">
-                          <FormField
-                            control={form.control}
-                            name="startHour"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Ora</FormLabel>
-                                <Select onValueChange={(value) => field.onChange(Number(value))} defaultValue={field.value?.toString()}>
-                                  <FormControl>
-                                    <SelectTrigger>
-                                      <SelectValue placeholder="Ora" />
-                                    </SelectTrigger>
-                                  </FormControl>
-                                  <SelectContent>
-                                    {Array.from({ length: 11 }, (_, i) => i + 8).map((hour) => (
-                                      <SelectItem key={hour} value={hour.toString()}>
-                                        {hour.toString().padStart(2, '0')}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={form.control}
-                            name="startMinute"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Minuti</FormLabel>
-                                <Select onValueChange={(value) => field.onChange(Number(value))} defaultValue={field.value?.toString()}>
-                                  <FormControl>
-                                    <SelectTrigger>
-                                      <SelectValue placeholder="Min" />
-                                    </SelectTrigger>
-                                  </FormControl>
-                                  <SelectContent>
-                                    {[0, 15, 30, 45].map((minute) => (
-                                      <SelectItem key={minute} value={minute.toString()}>
-                                        {minute.toString().padStart(2, '0')}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                        </div>
-                      </div>
-                      <FormField
-                        control={form.control}
-                        name="clientName"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Nome Cliente</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Inserisci nome cliente" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="stylistId"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Stilista</FormLabel>
-                            <Select onValueChange={(value) => field.onChange(Number(value))}>
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Seleziona stilista" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {stylists?.map((stylist: any) => (
-                                  <SelectItem key={stylist.id} value={stylist.id.toString()}>
-                                    {stylist.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="serviceId"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Servizio</FormLabel>
-                            <Select onValueChange={(value) => field.onChange(Number(value))}>
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Seleziona servizio" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {services?.map((service: any) => (
-                                  <SelectItem key={service.id} value={service.id.toString()}>
-                                    {service.name} ({service.duration}min - €{(service.price / 100).toFixed(2)})
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <div className="flex justify-end space-x-2 pt-4">
-                        <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-                          Annulla
-                        </Button>
-                        <Button 
-                          type="submit" 
-                          disabled={createAppointmentMutation.isPending}
-                          className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700"
-                        >
-                          {createAppointmentMutation.isPending ? "Creazione..." : "Crea Appuntamento"}
-                        </Button>
-                      </div>
-                    </form>
-                  </Form>
-                </DialogContent>
-              </Dialog>
-            </div>
-          </CardHeader>
-        </Card>
-
         {/* Today's Appointments */}
         <Card className="shadow-lg border-0">
           <CardHeader>
@@ -427,15 +122,6 @@ export default function Dashboard() {
                           {appointment.service.duration}min
                         </div>
                       </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => cancelAppointment(appointment.id, `${appointment.client.firstName} ${appointment.client.lastName}`)}
-                        className="text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
-                        disabled={deleteAppointmentMutation.isPending}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
                     </div>
                   </div>
                 ))}

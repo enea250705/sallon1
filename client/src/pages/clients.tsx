@@ -402,6 +402,7 @@ export default function Clients() {
 function ClientAppointmentHistory({ clientId }: { clientId: number }) {
   const [isOpen, setIsOpen] = useState(false);
   
+  // Unica query per gli appuntamenti (sempre attiva per mostrare il conteggio)
   const { data: appointments, isLoading } = useQuery<Appointment[]>({
     queryKey: ["/api/appointments/client", clientId],
     queryFn: async () => {
@@ -411,7 +412,6 @@ function ClientAppointmentHistory({ clientId }: { clientId: number }) {
       }
       return response.json();
     },
-    enabled: isOpen, // Only fetch when expanded
   });
 
   const appointmentCount = appointments?.length || 0;
@@ -423,8 +423,14 @@ function ClientAppointmentHistory({ clientId }: { clientId: number }) {
         <Button variant="ghost" className="w-full justify-between p-0 h-auto">
           <div className="flex items-center space-x-2 text-sm text-gray-600">
             <Calendar className="h-4 w-4" />
-            <span>Storico Appuntamenti ({appointmentCount})</span>
-            {appointmentCount > 0 && (
+            <span>
+              Storico Appuntamenti {isLoading ? (
+                <span className="text-gray-400">(...)</span>
+              ) : (
+                `(${appointmentCount})`
+              )}
+            </span>
+            {appointmentCount > 0 && !isLoading && (
               <span className="text-green-600 font-medium">
                 €{(totalSpent / 100).toFixed(2)}
               </span>

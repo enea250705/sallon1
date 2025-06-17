@@ -152,6 +152,7 @@ export default function Calendar() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/appointments"] });
       queryClient.invalidateQueries({ queryKey: ["/api/clients"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/appointments/client"] });
       setIsDialogOpen(false);
       form.reset();
       toast({ title: "Appuntamento creato con successo" });
@@ -191,6 +192,7 @@ export default function Calendar() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/appointments"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/appointments/client"] });
       toast({
         title: "Appuntamento aggiornato",
         description: "L'appuntamento è stato spostato con successo",
@@ -211,6 +213,7 @@ export default function Calendar() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/appointments"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/appointments/client"] });
       toast({ 
         title: "Appuntamento cancellato", 
         description: "L'appuntamento è stato cancellato con successo" 

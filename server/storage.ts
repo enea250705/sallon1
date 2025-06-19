@@ -92,6 +92,11 @@ export interface IStorage {
   getActiveRecurringReminders(): Promise<RecurringReminderWithDetails[]>;
   updateNextReminderDate(id: number, nextDate: string): Promise<boolean>;
   
+  // Suggested appointments from recurring reminders
+  getSuggestedAppointmentsByDate(date: string): Promise<any[]>;
+  getSuggestedAppointmentsByDateRange(startDate: string, endDate: string): Promise<any[]>;
+  confirmSuggestedAppointment(suggestedId: number, appointmentData: any): Promise<any>;
+  
   // Session store
   sessionStore: any;
   
@@ -811,6 +816,184 @@ export class DatabaseStorage implements IStorage {
         created: false
       };
     }
+  }
+
+  // Suggested appointments from recurring reminders
+  async getSuggestedAppointmentsByDate(date: string): Promise<any[]> {
+    try {
+      const allReminders = await this.getAllRecurringReminders();
+      const suggestedAppointments = [];
+
+      for (const reminder of allReminders) {
+        const suggestedDate = this.calculateNextSuggestedDate(reminder, date);
+        
+        if (suggestedDate === date) {
+          suggestedAppointments.push({
+            id: `reminder-${reminder.id}`,
+            type: 'suggested',
+            reminderId: reminder.id,
+            client: reminder.client,
+            stylist: reminder.stylist,
+            service: reminder.service,
+            date: date,
+            startTime: reminder.preferredTime || '09:00',
+            endTime: this.calculateEndTime(reminder.preferredTime || '09:00', reminder.service.duration),
+            notes: `Appuntamento suggerito dal promemoria ricorrente ${reminder.frequency}`,
+            isRecurring: true,
+            frequency: reminder.frequency,
+            dayOfWeek: reminder.dayOfWeek,
+            dayOfMonth: reminder.dayOfMonth
+          });
+        }
+      }
+
+      return suggestedAppointments;
+    } catch (error) {
+      console.error("Error getting suggested appointments by date:", error);
+      return [];
+    }
+  }
+
+  async getSuggestedAppointmentsByDateRange(startDate: string, endDate: string): Promise<any[]> {
+    try {
+      const allReminders = await this.getAllRecurringReminders();
+      const suggestedAppointments = [];
+
+      for (const reminder of allReminders) {
+        const dates = this.getDatesBetween(startDate, endDate);
+        
+        for (const date of dates) {
+          const suggestedDate = this.calculateNextSuggestedDate(reminder, date);
+          
+          if (suggestedDate >= startDate && suggestedDate <= endDate) {
+            suggestedAppointments.push({
+              id: `reminder-${reminder.id}-${suggestedDate}`,
+              type: 'suggested',
+              reminderId: reminder.id,
+              client: reminder.client,
+              stylist: reminder.stylist,
+              service: reminder.service,
+              date: suggestedDate,
+              startTime: reminder.preferredTime || '09:00',
+              endTime: this.calculateEndTime(reminder.preferredTime || '09:00', reminder.service.duration),
+              notes: `Appuntamento suggerito dal promemoria ricorrente ${reminder.frequency}`,
+              isRecurring: true,
+              frequency: reminder.frequency,
+              dayOfWeek: reminder.dayOfWeek,
+              dayOfMonth: reminder.dayOfMonth
+            });
+          }
+        }
+      }
+
+      return suggestedAppointments;
+    } catch (error) {
+      console.error("Error getting suggested appointments by date range:", error);
+      return [];
+    }
+  }
+
+  async confirmSuggestedAppointment(suggestedId: number, appointmentData: any): Promise<any> {
+    try {
+      // Extract reminder ID from the suggested ID
+      const reminderId = suggestedId;
+      const reminder = await this.getRecurringReminder(reminderId);
+      
+      if (!reminder) {
+        return null;
+      }
+
+      // Create the actual appointment
+      const appointment = await this.createAppointment({
+        clientId: reminder.clientId,
+        stylistId: reminder.stylistId,
+        serviceId: reminder.serviceId,
+        date: appointmentData.date,
+        startTime: appointmentData.startTime,
+        endTime: appointmentData.endTime,
+        notes: appointmentData.notes || `Confermato da promemoria ricorrente`
+      });
+
+      // Update the reminder's next date
+      const nextDate = this.calculateNextReminderDate(
+        reminder.frequency,
+        reminder.dayOfWeek,
+        reminder.dayOfMonth
+      );
+      
+      await this.updateNextReminderDate(reminderId, nextDate);
+
+      return appointment;
+    } catch (error) {
+      console.error("Error confirming suggested appointment:", error);
+      return null;
+    }
+  }
+
+  private calculateNextSuggestedDate(reminder: any, referenceDate: string): string {
+    const today = new Date(referenceDate);
+    let nextDate = new Date(today);
+
+    switch (reminder.frequency) {
+      case 'weekly':
+        if (reminder.dayOfWeek !== undefined && reminder.dayOfWeek !== null) {
+          const daysUntilTarget = (reminder.dayOfWeek - today.getDay() + 7) % 7;
+          if (daysUntilTarget === 0) {
+            // If today is the target day, return today
+            return referenceDate;
+          } else {
+            nextDate.setDate(today.getDate() + daysUntilTarget);
+          }
+        }
+        break;
+      case 'biweekly':
+        if (reminder.dayOfWeek !== undefined && reminder.dayOfWeek !== null) {
+          const daysUntilTarget = (reminder.dayOfWeek - today.getDay() + 7) % 7;
+          nextDate.setDate(today.getDate() + daysUntilTarget);
+          // Check if this falls within the biweekly pattern
+          const weeksSinceStart = Math.floor((nextDate.getTime() - new Date(reminder.createdAt).getTime()) / (7 * 24 * 60 * 60 * 1000));
+          if (weeksSinceStart % 2 !== 0) {
+            nextDate.setDate(nextDate.getDate() + 7);
+          }
+        }
+        break;
+      case 'monthly':
+        if (reminder.dayOfMonth !== undefined && reminder.dayOfMonth !== null) {
+          if (today.getDate() === reminder.dayOfMonth) {
+            return referenceDate;
+          }
+          nextDate.setDate(reminder.dayOfMonth);
+          if (nextDate < today) {
+            nextDate.setMonth(nextDate.getMonth() + 1);
+            nextDate.setDate(reminder.dayOfMonth);
+          }
+        }
+        break;
+    }
+
+    return nextDate.toISOString().split('T')[0];
+  }
+
+  private calculateEndTime(startTime: string, durationMinutes: number): string {
+    const [hours, minutes] = startTime.split(':').map(Number);
+    const startTimeMinutes = hours * 60 + minutes;
+    const endTimeMinutes = startTimeMinutes + durationMinutes;
+    const endHours = Math.floor(endTimeMinutes / 60);
+    const endMins = endTimeMinutes % 60;
+    return `${endHours.toString().padStart(2, '0')}:${endMins.toString().padStart(2, '0')}`;
+  }
+
+  private getDatesBetween(startDate: string, endDate: string): string[] {
+    const dates = [];
+    const currentDate = new Date(startDate);
+    const endDateObj = new Date(endDate);
+
+    while (currentDate <= endDateObj) {
+      dates.push(currentDate.toISOString().split('T')[0]);
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    return dates;
   }
 }
 

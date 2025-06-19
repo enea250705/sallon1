@@ -414,8 +414,15 @@ function ClientAppointmentHistory({ clientId }: { clientId: number }) {
     },
   });
 
+  // Separate past and future appointments
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const pastAppointments = appointments?.filter(apt => new Date(apt.date) < today) || [];
+  const futureAppointments = appointments?.filter(apt => new Date(apt.date) >= today) || [];
+  
   const appointmentCount = appointments?.length || 0;
-  const totalSpent = appointments?.reduce((sum, apt) => sum + apt.service.price, 0) || 0;
+  const totalSpent = pastAppointments.reduce((sum, apt) => sum + apt.service.price, 0);
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
@@ -424,15 +431,20 @@ function ClientAppointmentHistory({ clientId }: { clientId: number }) {
           <div className="flex items-center space-x-2 text-sm text-gray-600">
             <Calendar className="h-4 w-4" />
             <span>
-              Storico Appuntamenti {isLoading ? (
+              Appuntamenti {isLoading ? (
                 <span className="text-gray-400">(...)</span>
               ) : (
                 `(${appointmentCount})`
               )}
             </span>
-            {appointmentCount > 0 && !isLoading && (
+            {futureAppointments.length > 0 && !isLoading && (
+              <span className="text-blue-600 font-medium">
+                {futureAppointments.length} prossimi
+              </span>
+            )}
+            {totalSpent > 0 && !isLoading && (
               <span className="text-green-600 font-medium">
-                €{(totalSpent / 100).toFixed(2)}
+                €{(totalSpent / 100).toFixed(2)} totale
               </span>
             )}
           </div>
@@ -450,43 +462,118 @@ function ClientAppointmentHistory({ clientId }: { clientId: number }) {
             <p>Nessun appuntamento trovato</p>
           </div>
         ) : (
-          <div className="space-y-2 max-h-60 overflow-y-auto">
-            {appointments
-              .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-              .map((appointment) => (
-                <div
-                  key={appointment.id}
-                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg text-sm"
-                >
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-2">
-                      <div className="font-medium text-gray-900">
-                        {format(new Date(appointment.date), "d MMM yyyy", { locale: it })}
-                      </div>
-                      <div className="flex items-center space-x-1 text-gray-600">
-                        <Clock className="h-3 w-3" />
-                        <span>{appointment.startTime.slice(0, 5)}</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2 mt-1">
-                      <div className="flex items-center space-x-1 text-gray-600">
-                        <Scissors className="h-3 w-3" />
-                        <span>{appointment.service.name}</span>
-                      </div>
-                      <span className="text-gray-400">•</span>
-                      <span className="text-gray-600">{appointment.stylist.name}</span>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="font-medium text-green-600">
-                      €{(appointment.service.price / 100).toFixed(2)}
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      {appointment.service.duration}min
-                    </div>
-                  </div>
+          <div className="space-y-4 max-h-80 overflow-y-auto">
+            {/* Future Appointments Section */}
+            {futureAppointments.length > 0 && (
+              <div>
+                <div className="flex items-center space-x-2 mb-3">
+                  <div className="h-px bg-blue-200 flex-1"></div>
+                  <span className="text-xs font-medium text-blue-700 bg-blue-50 px-2 py-1 rounded">
+                    PROSSIMI APPUNTAMENTI ({futureAppointments.length})
+                  </span>
+                  <div className="h-px bg-blue-200 flex-1"></div>
                 </div>
-              ))}
+                <div className="space-y-2">
+                  {futureAppointments
+                    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+                    .map((appointment) => (
+                      <div
+                        key={appointment.id}
+                        className="flex items-center justify-between p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm"
+                      >
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2">
+                            <div className="font-medium text-blue-900">
+                              {format(new Date(appointment.date), "d MMM yyyy", { locale: it })}
+                            </div>
+                            <div className="flex items-center space-x-1 text-blue-700">
+                              <Clock className="h-3 w-3" />
+                              <span>{appointment.startTime.slice(0, 5)}</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-2 mt-1">
+                            <div className="flex items-center space-x-1 text-blue-700">
+                              <Scissors className="h-3 w-3" />
+                              <span>{appointment.service.name}</span>
+                            </div>
+                            <span className="text-blue-400">•</span>
+                            <span className="text-blue-700">{appointment.stylist.name}</span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-medium text-blue-700">
+                            €{(appointment.service.price / 100).toFixed(2)}
+                          </div>
+                          <div className="text-xs text-blue-600">
+                            {appointment.service.duration}min
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
+
+            {/* Past Appointments Section */}
+            {pastAppointments.length > 0 && (
+              <div>
+                {futureAppointments.length > 0 && (
+                  <div className="flex items-center space-x-2 mb-3">
+                    <div className="h-px bg-gray-200 flex-1"></div>
+                    <span className="text-xs font-medium text-gray-600 bg-gray-100 px-2 py-1 rounded">
+                      STORICO ({pastAppointments.length})
+                    </span>
+                    <div className="h-px bg-gray-200 flex-1"></div>
+                  </div>
+                )}
+                <div className="space-y-2">
+                  {pastAppointments
+                    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                    .map((appointment) => (
+                      <div
+                        key={appointment.id}
+                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg text-sm"
+                      >
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2">
+                            <div className="font-medium text-gray-900">
+                              {format(new Date(appointment.date), "d MMM yyyy", { locale: it })}
+                            </div>
+                            <div className="flex items-center space-x-1 text-gray-600">
+                              <Clock className="h-3 w-3" />
+                              <span>{appointment.startTime.slice(0, 5)}</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-2 mt-1">
+                            <div className="flex items-center space-x-1 text-gray-600">
+                              <Scissors className="h-3 w-3" />
+                              <span>{appointment.service.name}</span>
+                            </div>
+                            <span className="text-gray-400">•</span>
+                            <span className="text-gray-600">{appointment.stylist.name}</span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-medium text-green-600">
+                            €{(appointment.service.price / 100).toFixed(2)}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {appointment.service.duration}min
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
+
+            {/* No future appointments message */}
+            {futureAppointments.length === 0 && pastAppointments.length > 0 && (
+              <div className="text-center py-2 text-gray-500 text-sm bg-gray-50 rounded-lg">
+                <Calendar className="h-6 w-6 mx-auto mb-1 opacity-50" />
+                <p>Nessun appuntamento futuro prenotato</p>
+              </div>
+            )}
           </div>
         )}
       </CollapsibleContent>

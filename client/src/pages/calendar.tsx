@@ -103,6 +103,35 @@ export default function Calendar() {
     },
   });
 
+  // Fetch suggested appointments from recurring reminders
+  const { data: suggestedAppointments, isLoading: isLoadingSuggested } = useQuery<any[]>({
+    queryKey: viewMode === 'month' 
+      ? ["/api/appointments/suggested", "month", format(selectedDate, "yyyy-MM")]
+      : ["/api/appointments/suggested", "day", format(selectedDate, "yyyy-MM-dd")],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      
+      if (viewMode === 'month') {
+        params.set('startDate', format(startOfMonth(selectedDate), "yyyy-MM-dd"));
+        params.set('endDate', format(endOfMonth(selectedDate), "yyyy-MM-dd"));
+      } else {
+        params.set('date', format(selectedDate, "yyyy-MM-dd"));
+      }
+      
+      const response = await fetch(`/api/appointments/suggested?${params.toString()}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return response.json();
+    },
+  });
+
+  // Combine real appointments with suggested ones
+  const allAppointments = [
+    ...(appointments || []),
+    ...(suggestedAppointments || [])
+  ];
+
   const { data: stylists } = useQuery<any[]>({
     queryKey: ["/api/stylists"],
   });
@@ -174,6 +203,7 @@ export default function Calendar() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/appointments"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/appointments/suggested"] });
       queryClient.invalidateQueries({ queryKey: ["/api/clients"] });
       queryClient.invalidateQueries({ queryKey: ["/api/appointments/client"] });
       setIsDialogOpen(false);
@@ -216,6 +246,7 @@ export default function Calendar() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/appointments"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/appointments/suggested"] });
       queryClient.invalidateQueries({ queryKey: ["/api/appointments/client"] });
       setIsDialogOpen(false);
       setEditingAppointment(null);
@@ -240,6 +271,7 @@ export default function Calendar() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/appointments"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/appointments/suggested"] });
       queryClient.invalidateQueries({ queryKey: ["/api/appointments/client"] });
       toast({ 
         title: "Appuntamento cancellato", 
@@ -322,9 +354,9 @@ export default function Calendar() {
 
   // Helper function to get appointments for a specific date
   const getAppointmentsForDate = (date: Date) => {
-    if (!appointments) return [];
+    if (!allAppointments) return [];
     const dateString = format(date, "yyyy-MM-dd");
-    return appointments.filter(apt => apt.date === dateString);
+    return allAppointments.filter(apt => apt.date === dateString);
   };
 
   // Drag and drop handlers
@@ -379,7 +411,7 @@ export default function Calendar() {
   const calendarDays = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
 
   // Filter appointments for the selected date
-  const dayAppointments = appointments?.filter(app => app.date === format(selectedDate, "yyyy-MM-dd")) || [];
+  const dayAppointments = allAppointments?.filter(app => app.date === format(selectedDate, "yyyy-MM-dd")) || [];
 
   // Generate time slots for professional day view (08:00 - 20:00, 30min intervals)
   const timeSlots = Array.from({ length: 24 }, (_, i) => {
@@ -1080,7 +1112,7 @@ export default function Calendar() {
             </div>
           </CardHeader>
           <CardContent className="p-0">
-            {isLoading ? (
+            {(isLoading || isLoadingSuggested) ? (
               <div className="flex justify-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pink-600"></div>
               </div>
@@ -1168,7 +1200,11 @@ export default function Calendar() {
                             >
                               {appointmentAtStart && (
                                 <div
-                                  className="absolute inset-x-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white text-sm p-3 rounded-lg shadow-lg border-l-4 border-blue-700 z-10 cursor-pointer hover:from-blue-600 hover:to-blue-700 transition-all duration-200 transform hover:scale-105"
+                                  className={`absolute inset-x-2 text-white text-sm p-3 rounded-lg shadow-lg z-10 cursor-pointer transition-all duration-200 transform hover:scale-105 ${
+                                    appointmentAtStart.type === 'suggested' 
+                                      ? 'bg-gradient-to-r from-orange-400 to-orange-500 border-l-4 border-orange-600 hover:from-orange-500 hover:to-orange-600' 
+                                      : 'bg-gradient-to-r from-blue-500 to-blue-600 border-l-4 border-blue-700 hover:from-blue-600 hover:to-blue-700'
+                                  }`}
                                   style={{
                                     height: `${getAppointmentHeight(appointmentAtStart.startTime, appointmentAtStart.endTime) * 60 - 4}px`,
                                     top: '2px'
@@ -1178,8 +1214,16 @@ export default function Calendar() {
                                     handleAppointmentClick(appointmentAtStart);
                                   }}
                                 >
+                                  {appointmentAtStart.type === 'suggested' && (
+                                    <div className="absolute top-1 right-1 bg-white bg-opacity-20 rounded-full px-1 py-0.5">
+                                      <span className="text-xs font-bold">💡</span>
+                                    </div>
+                                  )}
                                   <div className="font-bold truncate text-sm leading-tight mb-1">
                                     {appointmentAtStart.client.firstName} {appointmentAtStart.client.lastName}
+                                    {appointmentAtStart.type === 'suggested' && (
+                                      <span className="ml-1 text-xs opacity-90">(Suggerito)</span>
+                                    )}
                                   </div>
                                   <div className="truncate opacity-90 text-xs leading-tight mb-1">
                                     {appointmentAtStart.service.name}

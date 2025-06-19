@@ -413,6 +413,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // New route for suggested appointments from recurring reminders
+  app.get("/api/appointments/suggested", isAuthenticated, async (req, res) => {
+    try {
+      const { date, startDate, endDate } = req.query;
+      
+      let suggestedAppointments = [];
+      
+      if (date && typeof date === "string") {
+        suggestedAppointments = await storage.getSuggestedAppointmentsByDate(date);
+      } else if (startDate && endDate && typeof startDate === "string" && typeof endDate === "string") {
+        suggestedAppointments = await storage.getSuggestedAppointmentsByDateRange(startDate, endDate);
+      }
+      
+      res.json(suggestedAppointments);
+    } catch (error) {
+      console.error("Error fetching suggested appointments:", error);
+      res.status(500).json({ message: "Failed to fetch suggested appointments" });
+    }
+  });
+
+  // Convert suggested appointment to real appointment
+  app.post("/api/appointments/suggested/:id/confirm", isAuthenticated, async (req, res) => {
+    try {
+      const suggestedId = parseInt(req.params.id);
+      const { date, startTime, endTime, notes } = req.body;
+      
+      const result = await storage.confirmSuggestedAppointment(suggestedId, { 
+        date, 
+        startTime, 
+        endTime, 
+        notes: notes || "" 
+      });
+      
+      if (!result) {
+        return res.status(404).json({ message: "Suggested appointment not found" });
+      }
+      
+      res.status(201).json(result);
+    } catch (error) {
+      console.error("Error confirming suggested appointment:", error);
+      res.status(500).json({ message: "Failed to confirm suggested appointment" });
+    }
+  });
+
   app.get("/api/appointments/:id", isAuthenticated, async (req, res) => {
     try {
       const id = parseInt(req.params.id);

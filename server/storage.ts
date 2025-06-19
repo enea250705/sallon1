@@ -822,28 +822,40 @@ export class DatabaseStorage implements IStorage {
   async getSuggestedAppointmentsByDate(date: string): Promise<any[]> {
     try {
       const allReminders = await this.getAllRecurringReminders();
+      const existingAppointments = await this.getAppointmentsByDate(date);
       const suggestedAppointments = [];
 
       for (const reminder of allReminders) {
         const suggestedDate = this.calculateNextSuggestedDate(reminder, date);
         
         if (suggestedDate === date) {
-          suggestedAppointments.push({
-            id: `reminder-${reminder.id}`,
-            type: 'suggested',
-            reminderId: reminder.id,
-            client: reminder.client,
-            stylist: reminder.stylist,
-            service: reminder.service,
-            date: date,
-            startTime: reminder.preferredTime || '09:00',
-            endTime: this.calculateEndTime(reminder.preferredTime || '09:00', reminder.service.duration),
-            notes: `Appuntamento suggerito dal promemoria ricorrente ${reminder.frequency}`,
-            isRecurring: true,
-            frequency: reminder.frequency,
-            dayOfWeek: reminder.dayOfWeek,
-            dayOfMonth: reminder.dayOfMonth
-          });
+          const startTime = reminder.preferredTime || '09:00';
+          
+          // Check if there's already an appointment for this client on this date
+          const existingAppointment = existingAppointments.find(apt => 
+            apt.clientId === reminder.clientId && 
+            apt.date === date
+          );
+          
+          // Only suggest if no existing appointment
+          if (!existingAppointment) {
+            suggestedAppointments.push({
+              id: `reminder-${reminder.id}`,
+              type: 'suggested',
+              reminderId: reminder.id,
+              client: reminder.client,
+              stylist: reminder.stylist,
+              service: reminder.service,
+              date: date,
+              startTime: startTime,
+              endTime: this.calculateEndTime(startTime, reminder.service.duration),
+              notes: `Appuntamento suggerito dal promemoria ricorrente ${reminder.frequency}`,
+              isRecurring: true,
+              frequency: reminder.frequency,
+              dayOfWeek: reminder.dayOfWeek,
+              dayOfMonth: reminder.dayOfMonth
+            });
+          }
         }
       }
 
@@ -857,15 +869,28 @@ export class DatabaseStorage implements IStorage {
   async getSuggestedAppointmentsByDateRange(startDate: string, endDate: string): Promise<any[]> {
     try {
       const allReminders = await this.getAllRecurringReminders();
+      const existingAppointments = await this.getAppointmentsByDateRange(startDate, endDate);
       const suggestedAppointments = [];
+      const uniqueSuggestions = new Set();
 
       for (const reminder of allReminders) {
-        const dates = this.getDatesBetween(startDate, endDate);
+        // Calculate ALL possible dates for this reminder in the range
+        const possibleDates = this.calculateRecurringDatesInRange(reminder, startDate, endDate);
         
-        for (const date of dates) {
-          const suggestedDate = this.calculateNextSuggestedDate(reminder, date);
+        for (const suggestedDate of possibleDates) {
+          const startTime = reminder.preferredTime || '09:00';
+          const uniqueKey = `${reminder.clientId}-${suggestedDate}`;
           
-          if (suggestedDate >= startDate && suggestedDate <= endDate) {
+          // Skip if already processed or if existing appointment exists
+          if (uniqueSuggestions.has(uniqueKey)) continue;
+          
+          const existingAppointment = existingAppointments.find(apt => 
+            apt.clientId === reminder.clientId && 
+            apt.date === suggestedDate
+          );
+          
+          if (!existingAppointment) {
+            uniqueSuggestions.add(uniqueKey);
             suggestedAppointments.push({
               id: `reminder-${reminder.id}-${suggestedDate}`,
               type: 'suggested',
@@ -874,8 +899,8 @@ export class DatabaseStorage implements IStorage {
               stylist: reminder.stylist,
               service: reminder.service,
               date: suggestedDate,
-              startTime: reminder.preferredTime || '09:00',
-              endTime: this.calculateEndTime(reminder.preferredTime || '09:00', reminder.service.duration),
+              startTime: startTime,
+              endTime: this.calculateEndTime(startTime, reminder.service.duration),
               notes: `Appuntamento suggerito dal promemoria ricorrente ${reminder.frequency}`,
               isRecurring: true,
               frequency: reminder.frequency,
@@ -991,6 +1016,81 @@ export class DatabaseStorage implements IStorage {
     while (currentDate <= endDateObj) {
       dates.push(currentDate.toISOString().split('T')[0]);
       currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    return dates;
+  }
+
+  private calculateRecurringDatesInRange(reminder: any, startDate: string, endDate: string): string[] {
+    const dates = [];
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    let currentDate = new Date(start);
+
+    switch (reminder.frequency) {
+      case 'weekly':
+        if (reminder.dayOfWeek !== undefined && reminder.dayOfWeek !== null) {
+          // Find first occurrence of the target day in the range
+          while (currentDate.getDay() !== reminder.dayOfWeek && currentDate <= end) {
+            currentDate.setDate(currentDate.getDate() + 1);
+          }
+          
+          // Add all weekly occurrences
+          while (currentDate <= end) {
+            if (currentDate >= start) {
+              dates.push(currentDate.toISOString().split('T')[0]);
+            }
+            currentDate.setDate(currentDate.getDate() + 7);
+          }
+        }
+        break;
+
+      case 'biweekly':
+        if (reminder.dayOfWeek !== undefined && reminder.dayOfWeek !== null) {
+          // Find first occurrence of the target day in the range
+          while (currentDate.getDay() !== reminder.dayOfWeek && currentDate <= end) {
+            currentDate.setDate(currentDate.getDate() + 1);
+          }
+          
+          // Add all biweekly occurrences
+          while (currentDate <= end) {
+            if (currentDate >= start) {
+              dates.push(currentDate.toISOString().split('T')[0]);
+            }
+            currentDate.setDate(currentDate.getDate() + 14);
+          }
+        }
+        break;
+
+      case 'monthly':
+        if (reminder.dayOfMonth !== undefined && reminder.dayOfMonth !== null) {
+          // Start from the first month that contains the start date
+          currentDate = new Date(start.getFullYear(), start.getMonth(), reminder.dayOfMonth);
+          
+          // If the target day is before start date in this month, move to next month
+          if (currentDate < start) {
+            currentDate.setMonth(currentDate.getMonth() + 1);
+            currentDate.setDate(reminder.dayOfMonth);
+          }
+          
+          // Add all monthly occurrences
+          while (currentDate <= end) {
+            if (currentDate >= start) {
+              dates.push(currentDate.toISOString().split('T')[0]);
+            }
+            
+            // Move to next month
+            const nextMonth = currentDate.getMonth() + 1;
+            currentDate.setMonth(nextMonth);
+            currentDate.setDate(reminder.dayOfMonth);
+            
+            // Handle case where day doesn't exist in next month
+            if (currentDate.getDate() !== reminder.dayOfMonth) {
+              currentDate.setDate(0); // Last day of previous month
+            }
+          }
+        }
+        break;
     }
 
     return dates;

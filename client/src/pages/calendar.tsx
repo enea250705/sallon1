@@ -81,10 +81,8 @@ export default function Calendar() {
   const selectedServiceId = form.watch("serviceId");
 
   // Fetch appointments based on view mode
-  const { data: appointments, isLoading } = useQuery<any[]>({
-    queryKey: viewMode === 'month' 
-      ? ["/api/appointments", "month", format(selectedDate, "yyyy-MM")]
-      : ["/api/appointments", "day", format(selectedDate, "yyyy-MM-dd")],
+  const { data: appointments, isLoading, refetch: refetchAppointments } = useQuery<any[]>({
+    queryKey: ["/api/appointments", viewMode, format(selectedDate, viewMode === 'month' ? "yyyy-MM" : "yyyy-MM-dd")],
     queryFn: async () => {
       const params = new URLSearchParams();
       
@@ -104,10 +102,8 @@ export default function Calendar() {
   });
 
   // Fetch suggested appointments from recurring reminders
-  const { data: suggestedAppointments, isLoading: isLoadingSuggested } = useQuery<any[]>({
-    queryKey: viewMode === 'month' 
-      ? ["/api/appointments/suggested", "month", format(selectedDate, "yyyy-MM")]
-      : ["/api/appointments/suggested", "day", format(selectedDate, "yyyy-MM-dd")],
+  const { data: suggestedAppointments, isLoading: isLoadingSuggested, refetch: refetchSuggested } = useQuery<any[]>({
+    queryKey: ["/api/appointments/suggested", viewMode, format(selectedDate, viewMode === 'month' ? "yyyy-MM" : "yyyy-MM-dd")],
     queryFn: async () => {
       const params = new URLSearchParams();
       
@@ -125,6 +121,12 @@ export default function Calendar() {
       return response.json();
     },
   });
+
+  // Force refetch when viewMode changes
+  useEffect(() => {
+    refetchAppointments();
+    refetchSuggested();
+  }, [viewMode, refetchAppointments, refetchSuggested]);
 
   // Combine real appointments with suggested ones
   const allAppointments = [

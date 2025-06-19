@@ -183,7 +183,7 @@ export default function Clients() {
                 Nuovo Cliente
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
+            <DialogContent className="max-w-[95vw] sm:max-w-md w-full mx-2 sm:mx-4">
               <DialogHeader>
                 <DialogTitle>
                   {editingClient ? "Modifica Cliente" : "Nuovo Cliente"}
@@ -322,55 +322,56 @@ export default function Clients() {
                     className="border rounded-lg p-4 hover:bg-gray-50 transition-colors"
                   >
                     {/* Client Header */}
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center space-x-4">
-                        <div className="bg-gradient-to-r from-pink-400 to-purple-500 p-3 rounded-full">
-                          <span className="text-white font-semibold text-sm">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 space-y-3 sm:space-y-0">
+                      <div className="flex items-center space-x-3 sm:space-x-4">
+                        <div className="bg-gradient-to-r from-pink-400 to-purple-500 p-2 sm:p-3 rounded-full flex-shrink-0">
+                          <span className="text-white font-semibold text-xs sm:text-sm">
                             {client.firstName[0]}{client.lastName[0]}
                           </span>
                         </div>
-                        <div className="flex-1">
-                          <h3 className="font-semibold text-gray-900">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-semibold text-gray-900 text-sm sm:text-base truncate">
                             {client.firstName} {client.lastName}
                           </h3>
-                          <div className="flex items-center space-x-4 text-sm text-gray-600 mt-1">
+                          <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4 space-y-1 sm:space-y-0 text-xs sm:text-sm text-gray-600 mt-1">
                             <div className="flex items-center space-x-1">
-                              <Phone className="h-4 w-4" />
-                              <span>{client.phone}</span>
+                              <Phone className="h-3 w-3 sm:h-4 sm:w-4" />
+                              <span className="truncate">{client.phone}</span>
                             </div>
                             {client.email && (
                               <div className="flex items-center space-x-1">
-                                <Mail className="h-4 w-4" />
-                                <span>{client.email}</span>
+                                <Mail className="h-3 w-3 sm:h-4 sm:w-4" />
+                                <span className="truncate">{client.email}</span>
                               </div>
                             )}
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center space-x-2">
+                      <div className="flex items-center space-x-1 sm:space-x-2 flex-shrink-0">
                         <Button
                           variant="ghost"
                           size="icon"
                           onClick={() => window.open(`/recurring-reminders?client=${client.id}`, '_blank')}
                           title="Gestisci promemoria ricorrenti"
-                          className="text-blue-600 hover:text-blue-700"
+                          className="text-blue-600 hover:text-blue-700 h-8 w-8 sm:h-9 sm:w-9"
                         >
-                          <Bell className="h-4 w-4" />
+                          <Bell className="h-3 w-3 sm:h-4 sm:w-4" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
                           onClick={() => handleEdit(client)}
+                          className="h-8 w-8 sm:h-9 sm:w-9"
                         >
-                          <Edit className="h-4 w-4" />
+                          <Edit className="h-3 w-3 sm:h-4 sm:w-4" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
                           onClick={() => handleDelete(client.id)}
-                          className="text-red-600 hover:text-red-700"
+                          className="text-red-600 hover:text-red-700 h-8 w-8 sm:h-9 sm:w-9"
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
                         </Button>
                       </div>
                     </div>

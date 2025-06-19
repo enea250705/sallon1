@@ -145,7 +145,7 @@ export default function Stylists() {
                 Nuovo Membro
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
+            <DialogContent className="max-w-[95vw] sm:max-w-md w-full mx-2 sm:mx-4">
               <DialogHeader>
                 <DialogTitle>
                   {editingStylist ? "Modifica Membro Staff" : "Nuovo Membro Staff"}

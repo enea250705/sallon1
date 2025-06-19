@@ -82,7 +82,7 @@ export default function Calendar() {
 
   // Fetch appointments based on view mode
   const { data: appointments, isLoading, refetch: refetchAppointments } = useQuery<any[]>({
-    queryKey: ["/api/appointments", viewMode, format(selectedDate, viewMode === 'month' ? "yyyy-MM" : "yyyy-MM-dd")],
+    queryKey: ["/api/appointments", viewMode, format(selectedDate, viewMode === 'month' ? "yyyy-MM" : "yyyy-MM-dd"), selectedDate.getTime()],
     queryFn: async () => {
       const params = new URLSearchParams();
       
@@ -103,7 +103,7 @@ export default function Calendar() {
 
   // Fetch suggested appointments from recurring reminders
   const { data: suggestedAppointments, isLoading: isLoadingSuggested, refetch: refetchSuggested } = useQuery<any[]>({
-    queryKey: ["/api/appointments/suggested", viewMode, format(selectedDate, viewMode === 'month' ? "yyyy-MM" : "yyyy-MM-dd")],
+    queryKey: ["/api/appointments/suggested", viewMode, format(selectedDate, viewMode === 'month' ? "yyyy-MM" : "yyyy-MM-dd"), selectedDate.getTime()],
     queryFn: async () => {
       const params = new URLSearchParams();
       
@@ -122,11 +122,12 @@ export default function Calendar() {
     },
   });
 
-  // Force refetch when viewMode changes
+  // Force refetch when viewMode or selectedDate changes
   useEffect(() => {
+    console.log('Calendar refetch triggered:', { viewMode, selectedDate: format(selectedDate, 'yyyy-MM-dd') });
     refetchAppointments();
     refetchSuggested();
-  }, [viewMode, refetchAppointments, refetchSuggested]);
+  }, [viewMode, selectedDate, refetchAppointments, refetchSuggested]);
 
   // Combine real appointments with suggested ones
   const allAppointments = [
@@ -1047,7 +1048,80 @@ export default function Calendar() {
         {/* Calendar Navigation */}
         <Card className="shadow-lg border-0">
           <CardHeader className="pb-4">
-            <div className="flex items-center justify-between flex-wrap gap-4">
+            {/* Mobile Header */}
+            <div className="block sm:hidden">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center space-x-2">
+                  <Button variant="outline" onClick={navigatePrevious} className="h-8 w-8 p-0">
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <h2 className="text-lg font-semibold truncate">
+                    {viewMode === 'month' 
+                      ? format(selectedDate, "MMM yyyy", { locale: it })
+                      : format(selectedDate, "d MMM", { locale: it })
+                    }
+                  </h2>
+                  <Button variant="outline" onClick={navigateNext} className="h-8 w-8 p-0">
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+                <Button variant="outline" size="sm" onClick={navigateToday} className="h-8 px-3 text-xs">
+                  Oggi
+                </Button>
+              </div>
+              
+              <div className="flex flex-col space-y-2">
+                {/* Day view filters - Mobile */}
+                {viewMode === 'day' && (
+                  <Select value={selectedStylistFilter.toString()} onValueChange={(value) => setSelectedStylistFilter(value === 'all' ? 'all' : Number(value))}>
+                    <SelectTrigger className="w-full h-10">
+                      <SelectValue placeholder="Tutti i Collaboratori" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tutti i Collaboratori</SelectItem>
+                      {stylists?.map((stylist: any) => (
+                        <SelectItem key={stylist.id} value={stylist.id.toString()}>
+                          {stylist.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                
+            <div className="flex items-center justify-between">
+                  <div className="flex items-center bg-gray-100 rounded-lg p-1 flex-1 mr-2">
+                    <Button
+                      variant={viewMode === 'month' ? 'default' : 'ghost'}
+                      size="sm"
+                      onClick={() => setViewMode('month')}
+                      className="h-8 px-3 text-xs flex-1"
+                    >
+                      Mese
+                    </Button>
+                    <Button
+                      variant={viewMode === 'day' ? 'default' : 'ghost'}
+                      size="sm"
+                      onClick={() => setViewMode('day')}
+                      className="h-8 px-3 text-xs flex-1"
+                    >
+                      Giorno
+                    </Button>
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => triggerRemindersMutation.mutate()}
+                    disabled={triggerRemindersMutation.isPending}
+                    className="text-blue-600 border-blue-200 hover:bg-blue-50 h-8 px-3 text-xs"
+                  >
+                    {triggerRemindersMutation.isPending ? "..." : "Test"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+            
+            {/* Desktop/Tablet Header */}
+            <div className="hidden sm:flex items-center justify-between flex-wrap gap-4">
               <div className="flex items-center space-x-4">
                 <Button variant="outline" onClick={navigatePrevious} className="h-10 w-10 p-0">
                   <ChevronLeft className="h-5 w-5" />
@@ -1146,9 +1220,97 @@ export default function Calendar() {
                 </div>
               </div>
             ) : (
-              // Professional Day View Grid - Full-width responsive for iPad
               <div className="w-full">
-                <div className="w-full">
+                {/* Mobile Day View */}
+                <div className="block sm:hidden">
+                  <div className="space-y-4 p-4">
+                    {filteredStylists.map((stylist: any) => (
+                      <div key={stylist.id} className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                        {/* Stylist Header */}
+                        <div className="bg-gradient-to-r from-blue-50 to-blue-100 px-4 py-3 border-b border-gray-200">
+                          <h3 className="font-bold text-lg text-gray-900">{stylist.name.toUpperCase()}</h3>
+                </div>
+                        
+                        {/* Time slots for this stylist */}
+                        <div className="divide-y divide-gray-100">
+                          {timeSlots.map((time, timeIndex) => {
+                            const stylistAppointments = dayAppointments.filter(apt => 
+                              apt.stylistId === stylist.id &&
+                              timeToPosition(apt.startTime) <= timeIndex &&
+                              timeToPosition(apt.endTime) > timeIndex
+                            );
+                            
+                            const appointmentAtStart = stylistAppointments.find(apt => 
+                              timeToPosition(apt.startTime) === timeIndex
+                            );
+                            
+                            const isOccupied = stylistAppointments.length > 0;
+                            
+                            return (
+                              <div key={time} className="flex">
+                                <div className="w-16 bg-gray-50 px-3 py-4 border-r border-gray-200 flex items-center justify-center">
+                                  <div className="text-center">
+                                    <div className="text-sm font-medium text-gray-700">{time}</div>
+                                  </div>
+                                </div>
+                                <div 
+                                  className="flex-1 min-h-[60px] relative hover:bg-blue-50 cursor-pointer transition-all duration-200"
+                                  onClick={() => !isOccupied && handleEmptyCellClick(stylist.id, time)}
+                                >
+                                  {appointmentAtStart && (
+                                    <div
+                                      className={`absolute inset-2 text-white text-sm p-3 rounded-lg shadow-lg z-10 cursor-pointer transition-all duration-200 ${
+                                        appointmentAtStart.type === 'suggested' 
+                                          ? 'bg-gradient-to-r from-orange-400 to-orange-500 border-l-4 border-orange-600' 
+                                          : 'bg-gradient-to-r from-blue-500 to-blue-600 border-l-4 border-blue-700'
+                                      }`}
+                                      style={{
+                                        height: `${getAppointmentHeight(appointmentAtStart.startTime, appointmentAtStart.endTime) * 60 - 8}px`,
+                                      }}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleAppointmentClick(appointmentAtStart);
+                                      }}
+                                    >
+                                      {appointmentAtStart.type === 'suggested' && (
+                                        <div className="absolute top-1 right-1 bg-white bg-opacity-20 rounded-full px-1 py-0.5">
+                                          <span className="text-xs font-bold">💡</span>
+                                        </div>
+                                      )}
+                                      <div className="font-bold text-sm leading-tight mb-1">
+                                        {appointmentAtStart.client.firstName} {appointmentAtStart.client.lastName}
+                                        {appointmentAtStart.type === 'suggested' && (
+                                          <span className="ml-1 text-xs opacity-90">(Suggerito)</span>
+                                        )}
+                                      </div>
+                                      <div className="text-xs opacity-90 leading-tight mb-1">
+                                        {appointmentAtStart.service.name}
+                                      </div>
+                                      <div className="text-xs opacity-80 leading-tight">
+                                        {Math.round(appointmentAtStart.service.duration / 60 * 100) / 100}h • €{(appointmentAtStart.service.price / 100).toFixed(0)}
+                                      </div>
+                                    </div>
+                                  )}
+                                  {!isOccupied && (
+                                    <div className="absolute inset-0 opacity-0 hover:opacity-100 bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-300 border-dashed rounded-lg m-2 flex items-center justify-center transition-all duration-200">
+                                      <div className="text-center">
+                                        <Plus className="h-5 w-5 text-blue-500 mx-auto mb-1" />
+                                        <div className="text-xs text-blue-600 font-medium">Nuovo</div>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                  ))}
+                </div>
+                </div>
+
+                {/* Desktop/Tablet Day View */}
+                <div className="hidden sm:block w-full">
                   {/* Header with stylist names */}
                   <div className="grid border-b border-gray-300" style={{ gridTemplateColumns: '120px repeat(' + filteredStylists.length + ', 1fr)' }}>
                     <div className="p-4 bg-gradient-to-r from-gray-100 to-gray-200 border-r border-gray-300 font-bold text-base text-gray-800 flex items-center justify-center">
@@ -1269,15 +1431,15 @@ export default function Calendar() {
         
         {/* Detailed Appointment Modal */}
         <Dialog open={isAppointmentDetailOpen} onOpenChange={setIsAppointmentDetailOpen}>
-          <DialogContent className="max-w-lg sm:max-w-xl md:max-w-2xl w-full mx-4">
+          <DialogContent className="max-w-[95vw] sm:max-w-lg md:max-w-xl lg:max-w-2xl w-full mx-2 sm:mx-4 max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle className="flex items-center justify-between text-lg">
-                <span className="font-bold">{selectedAppointment?.client?.firstName} {selectedAppointment?.client?.lastName}</span>
-                <div className="flex items-center space-x-3">
+              <DialogTitle className="flex items-center justify-between text-base sm:text-lg">
+                <span className="font-bold truncate mr-2">{selectedAppointment?.client?.firstName} {selectedAppointment?.client?.lastName}</span>
+                <div className="flex items-center space-x-2 sm:space-x-3 flex-shrink-0">
                   <Button 
                     variant="outline" 
                     size="sm" 
-                    className="h-10 px-4"
+                    className="h-8 px-3 sm:h-10 sm:px-4 text-xs sm:text-sm"
                     onClick={() => selectedAppointment && handleEditAppointment(selectedAppointment)}
                   >
                     Modifica
@@ -1285,10 +1447,10 @@ export default function Calendar() {
                   <Button 
                     variant="ghost" 
                     size="sm" 
-                    className="h-10 w-10 p-0 hover:bg-gray-100"
+                    className="h-8 w-8 sm:h-10 sm:w-10 p-0 hover:bg-gray-100"
                     onClick={() => setIsAppointmentDetailOpen(false)}
                   >
-                    <X className="h-5 w-5" />
+                    <X className="h-4 w-4 sm:h-5 sm:w-5" />
                   </Button>
                 </div>
               </DialogTitle>
@@ -1328,17 +1490,17 @@ export default function Calendar() {
                     {selectedAppointment.startTime}
                   </div>
                   
-                  <div className="bg-gray-50 p-4 rounded-lg border">
-                    <div className="flex items-center justify-between">
+                  <div className="bg-gray-50 p-3 sm:p-4 rounded-lg border">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between space-y-3 sm:space-y-0">
                       <div className="flex-1">
-                        <div className="font-bold text-base">{selectedAppointment.service?.name}</div>
-                        <div className="text-sm text-gray-600 mt-1">
+                        <div className="font-bold text-sm sm:text-base">{selectedAppointment.service?.name}</div>
+                        <div className="text-xs sm:text-sm text-gray-600 mt-1">
                           CON {selectedAppointment.stylist?.name?.toUpperCase()}
                         </div>
                       </div>
-                      <div className="flex items-center space-x-2">
+                      <div className="flex items-center space-x-2 sm:space-x-2">
                         <Select defaultValue="0.30h">
-                          <SelectTrigger className="w-24 h-10 text-sm">
+                          <SelectTrigger className="w-20 sm:w-24 h-8 sm:h-10 text-xs sm:text-sm">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -1352,21 +1514,21 @@ export default function Calendar() {
                             <SelectItem value="2.00h">2.00h</SelectItem>
                           </SelectContent>
                         </Select>
-                        <Button variant="ghost" size="sm" className="h-10 w-10 p-0 text-red-500 hover:bg-red-50">
-                          <Trash2 className="h-5 w-5" />
+                        <Button variant="ghost" size="sm" className="h-8 w-8 sm:h-10 sm:w-10 p-0 text-red-500 hover:bg-red-50">
+                          <Trash2 className="h-4 w-4 sm:h-5 sm:w-5" />
                         </Button>
                       </div>
                     </div>
                   </div>
                   
                   {/* Cleaning Time */}
-                  <div className="flex items-center justify-between bg-gray-50 p-4 rounded-lg border">
-                    <div className="flex items-center space-x-3">
-                      <span className="text-lg text-gray-600">⚡</span>
-                      <span className="text-sm font-medium text-gray-700">Tempo di pulizia</span>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between space-y-2 sm:space-y-0 bg-gray-50 p-3 sm:p-4 rounded-lg border">
+                    <div className="flex items-center space-x-2 sm:space-x-3">
+                      <span className="text-base sm:text-lg text-gray-600">⚡</span>
+                      <span className="text-xs sm:text-sm font-medium text-gray-700">Tempo di pulizia</span>
                     </div>
                     <Select defaultValue="0.00h">
-                      <SelectTrigger className="w-24 h-10 text-sm">
+                      <SelectTrigger className="w-20 sm:w-24 h-8 sm:h-10 text-xs sm:text-sm">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>

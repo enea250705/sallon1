@@ -226,29 +226,29 @@ export default function RecurringReminders() {
           ) : (
             <div className="divide-y divide-gray-200">
               {reminders.map((reminder) => (
-                <div key={reminder.id} className="p-6 hover:bg-gray-50">
-                  <div className="flex items-center justify-between">
+                <div key={reminder.id} className="p-4 sm:p-6 hover:bg-gray-50">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
                     <div className="flex-1">
-                      <div className="flex items-center space-x-4 mb-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4 space-y-2 sm:space-y-0 mb-3">
                         <div className="flex items-center space-x-2">
-                          <User className="h-5 w-5 text-gray-400" />
-                          <span className="font-medium text-gray-900">
+                          <User className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400 flex-shrink-0" />
+                          <span className="font-medium text-gray-900 text-sm sm:text-base truncate">
                             {reminder.client.firstName} {reminder.client.lastName}
                           </span>
                         </div>
                         <div className="flex items-center space-x-2">
-                          <Scissors className="h-5 w-5 text-gray-400" />
-                          <span className="text-gray-600">{reminder.service.name}</span>
+                          <Scissors className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400 flex-shrink-0" />
+                          <span className="text-gray-600 text-sm sm:text-base truncate">{reminder.service.name}</span>
                         </div>
                         <div className="flex items-center space-x-2">
-                          <User className="h-5 w-5 text-gray-400" />
-                          <span className="text-gray-600">{reminder.stylist.name}</span>
+                          <User className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400 flex-shrink-0" />
+                          <span className="text-gray-600 text-sm sm:text-base truncate">{reminder.stylist.name}</span>
                         </div>
                       </div>
                       
-                      <div className="flex items-center space-x-6 text-sm text-gray-600">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-6 space-y-2 sm:space-y-0 text-xs sm:text-sm text-gray-600">
                         <div className="flex items-center space-x-2">
-                          <Calendar className="h-4 w-4" />
+                          <Calendar className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
                           <span>{formatFrequency(reminder.frequency)}</span>
                           {reminder.dayOfWeek !== null && (
                             <span>- {formatDayOfWeek(reminder.dayOfWeek)}</span>
@@ -259,33 +259,33 @@ export default function RecurringReminders() {
                         </div>
                         {reminder.preferredTime && (
                           <div className="flex items-center space-x-2">
-                            <Clock className="h-4 w-4" />
+                            <Clock className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
                             <span>{reminder.preferredTime}</span>
                           </div>
                         )}
                         {reminder.nextReminderDate && (
                           <div className="flex items-center space-x-2">
-                            <Bell className="h-4 w-4" />
+                            <Bell className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
                             <span>Prossimo: {new Date(reminder.nextReminderDate).toLocaleDateString('it-IT')}</span>
                           </div>
                         )}
                       </div>
                     </div>
                     
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-1 sm:space-x-2 flex-shrink-0 self-end sm:self-center">
                       <button
                         onClick={() => setEditingReminder(reminder)}
                         className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
                         title="Modifica promemoria"
                       >
-                        <Edit className="h-4 w-4" />
+                        <Edit className="h-3 w-3 sm:h-4 sm:w-4" />
                       </button>
                       <button
                         onClick={() => handleDeleteReminder(reminder)}
                         className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
                         title="Elimina promemoria"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
                       </button>
                     </div>
                   </div>

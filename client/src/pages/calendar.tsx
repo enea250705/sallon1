@@ -936,11 +936,7 @@ export default function Calendar() {
                         </FormItem>
                       )}
                     />
-                        <div className="text-center">
-                          <div className="inline-block bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-medium">
-                            COMPILA QUI PER RACCOGLIERE PIÙ RECENSIONI!
-                          </div>
-                        </div>
+
                       </div>
 
                       {/* Time display - THIRD */}
@@ -1725,7 +1721,7 @@ export default function Calendar() {
                         readOnly
                         className="bg-gray-50 h-12 text-base"
                       />
-                      <div className="text-sm text-green-600 mt-2 font-medium">COMPILA QUI PER RACCOGLIERE PIÙ RECENSIONI!</div>
+
                     </div>
                   </div>
                   <Input 

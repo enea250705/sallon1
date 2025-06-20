@@ -20,6 +20,7 @@ import { DraggableAppointment } from "@/components/calendar/draggable-appointmen
 import { DroppableDay } from "@/components/calendar/droppable-day";
 import { DroppableTimeSlot } from "@/components/calendar/droppable-time-slot";
 import { DraggableDailyAppointment } from "@/components/calendar/draggable-daily-appointment";
+import { ClientSelector } from "@/components/client-selector";
 
 const appointmentSchema = z.object({
   clientType: z.enum(["new", "existing"], { required_error: "Tipo cliente è richiesto" }),
@@ -63,6 +64,8 @@ export default function Calendar() {
   // Cut & Paste state
   const [clipboardAppointment, setClipboardAppointment] = useState<any>(null);
   const [isCutMode, setIsCutMode] = useState(false);
+  // Client selector state
+  const [isClientSelectorOpen, setIsClientSelectorOpen] = useState(false);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -434,6 +437,14 @@ export default function Calendar() {
       title: "Operazione annullata",
       description: "Taglia e incolla annullato",
     });
+  };
+
+  // Function to handle client selection from client selector
+  const handleClientSelection = (client: any) => {
+    form.setValue("clientId", client.id);
+    form.setValue("clientName", `${client.firstName} ${client.lastName}`);
+    form.setValue("clientPhone", client.phone);
+    setIsClientSelectorOpen(false);
   };
 
   // Navigation functions
@@ -846,51 +857,36 @@ export default function Calendar() {
                           )}
                         />
 
-                        {/* Existing Client Selection */}
+                        {/* Existing Client Selection - Browse Button */}
                         {form.watch("clientType") === "existing" && (
-                          <FormField
-                            control={form.control}
-                            name="clientId"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormControl>
-                                  <div className="relative">
-                                    <select 
-                                      {...field}
-                                      value={field.value || ""}
-                                      onChange={(e) => {
-                                        const clientId = Number(e.target.value);
-                                        field.onChange(clientId || undefined);
-                                        
-                                        // Auto-fill phone number when client is selected
-                                        if (clientId && clients) {
-                                          const selectedClient = clients.find((c: any) => c.id === clientId);
-                                          if (selectedClient) {
-                                            form.setValue("clientPhone", selectedClient.phone);
-                                            form.setValue("clientName", `${selectedClient.firstName} ${selectedClient.lastName}`);
-                                          }
-                                        }
-                                      }}
-                                      className="w-full h-12 px-4 bg-gray-100 border-0 rounded-full text-base appearance-none focus:outline-none focus:ring-2 focus:ring-blue-200"
-                                    >
-                                      <option value="">Seleziona cliente dalla rubrica</option>
-                                      {clients?.map((client: any) => (
-                                        <option key={client.id} value={client.id}>
-                                          {client.firstName} {client.lastName} - {client.phone}
-                                        </option>
-                                      ))}
-                                    </select>
-                                    <div className="absolute right-4 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                                      <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                      </svg>
-                                    </div>
-                                  </div>
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
+                          <div className="space-y-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => setIsClientSelectorOpen(true)}
+                              className="w-full h-12 px-4 bg-gray-100 border-0 rounded-full text-base font-medium hover:bg-gray-200 transition-colors"
+                            >
+                              <User className="h-4 w-4 mr-2" />
+                              {form.watch("clientName") || "Sfoglia Rubrica Clienti"}
+                            </Button>
+                            {form.watch("clientId") && (
+                              <div className="text-center">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    form.setValue("clientId", undefined);
+                                    form.setValue("clientName", "");
+                                    form.setValue("clientPhone", "");
+                                  }}
+                                  className="text-gray-500 hover:text-gray-700"
+                                >
+                                  Deseleziona cliente
+                                </Button>
+                              </div>
                             )}
-                          />
+                          </div>
                         )}
 
                         {/* Client Name Input - Always visible and editable */}
@@ -1828,6 +1824,14 @@ export default function Calendar() {
             />
           ) : null}
         </DragOverlay>
+
+        {/* Client Selector Modal */}
+        <ClientSelector
+          isOpen={isClientSelectorOpen}
+          onClose={() => setIsClientSelectorOpen(false)}
+          onSelectClient={handleClientSelection}
+          clients={clients || []}
+        />
       </div>
     </Layout>
     </DndContext>

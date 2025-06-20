@@ -627,6 +627,13 @@ export default function Calendar() {
 
   return (
     <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+      <style dangerouslySetInnerHTML={{
+        __html: `
+          .hide-close-button > button:last-child {
+            display: none !important;
+          }
+        `
+      }} />
       <Layout>
         <div className="space-y-6">
         {/* Header */}
@@ -642,7 +649,7 @@ export default function Calendar() {
                 Nuovo Appuntamento
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[420px] p-0 [&>button]:hidden">
+            <DialogContent className="sm:max-w-[420px] p-0 hide-close-button">
               <div className="bg-white rounded-lg">
                 {/* Header */}
                 <div className="flex items-center justify-between p-4 border-b">
@@ -659,13 +666,6 @@ export default function Calendar() {
                     </span>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <button 
-                      type="button" 
-                      className="h-10 w-10 rounded-full hover:bg-gray-100 flex items-center justify-center"
-                      onClick={() => setIsDialogOpen(false)}
-                    >
-                      <X className="h-5 w-5 text-gray-600" />
-                    </button>
                     <button 
                       type="submit" 
                       form="appointment-form"
@@ -1576,7 +1576,7 @@ export default function Calendar() {
         
         {/* Detailed Appointment Modal */}
         <Dialog open={isAppointmentDetailOpen} onOpenChange={setIsAppointmentDetailOpen}>
-          <DialogContent className="max-w-[95vw] sm:max-w-lg md:max-w-xl lg:max-w-2xl w-full mx-2 sm:mx-4 max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-[95vw] sm:max-w-lg md:max-w-xl lg:max-w-2xl w-full mx-2 sm:mx-4 max-h-[90vh] overflow-y-auto hide-close-button">
             <DialogHeader>
               <DialogTitle className="flex items-center justify-between text-base sm:text-lg">
                 <span className="font-bold truncate mr-2">{selectedAppointment?.client?.firstName} {selectedAppointment?.client?.lastName}</span>

@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Calendar as CalendarIcon, Clock, User, Scissors, ChevronLeft, ChevronRight, X, Check, Trash2, Clipboard } from "lucide-react";
+import { Plus, Calendar as CalendarIcon, Clock, User, Scissors, ChevronLeft, ChevronRight, X, Check, Trash2, Clipboard, Search, Users } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { format, addDays, subDays, startOfWeek, addWeeks, subWeeks, startOfMonth, endOfMonth, addMonths, subMonths, eachDayOfInterval, isSameMonth, isSameDay, isToday } from "date-fns";
@@ -63,6 +63,9 @@ export default function Calendar() {
   // Cut & Paste state
   const [clipboardAppointment, setClipboardAppointment] = useState<any>(null);
   const [isCutMode, setIsCutMode] = useState(false);
+  // Client browser state
+  const [isClientBrowserOpen, setIsClientBrowserOpen] = useState(false);
+  const [clientSearchQuery, setClientSearchQuery] = useState("");
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -436,6 +439,27 @@ export default function Calendar() {
     });
   };
 
+  // Client browser functions
+  const selectClient = (client: any) => {
+    form.setValue("clientId", client.id);
+    form.setValue("clientName", `${client.firstName} ${client.lastName}`);
+    form.setValue("clientPhone", client.phone);
+    setIsClientBrowserOpen(false);
+    setClientSearchQuery("");
+    toast({
+      title: "Cliente selezionato",
+      description: `${client.firstName} ${client.lastName}`,
+    });
+  };
+
+  // Filter clients based on search query
+  const filteredClients = clients?.filter((client: any) => {
+    const fullName = `${client.firstName} ${client.lastName}`.toLowerCase();
+    const phone = client.phone?.toLowerCase() || "";
+    const query = clientSearchQuery.toLowerCase();
+    return fullName.includes(query) || phone.includes(query);
+  }) || [];
+
   // Navigation functions
   const navigateToday = () => setSelectedDate(new Date());
   const navigatePrevious = () => {
@@ -736,13 +760,13 @@ export default function Calendar() {
               </div>
             )}
             
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <DialogTrigger asChild>
-                <Button className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Nuovo Appuntamento
-                </Button>
-              </DialogTrigger>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700">
+                <Plus className="h-4 w-4 mr-2" />
+                Nuovo Appuntamento
+              </Button>
+            </DialogTrigger>
             <DialogContent className="sm:max-w-[420px] p-0 hide-close-button">
               <div className="bg-white rounded-lg">
                 {/* Header */}
@@ -804,8 +828,8 @@ export default function Calendar() {
                       
                       {/* Client Selection/Name field - FIRST */}
                       <div className="space-y-2">
-                        <FormField
-                          control={form.control}
+                    <FormField
+                      control={form.control}
                           name="clientType"
                           render={({ field }) => (
                             <FormItem>
@@ -848,60 +872,31 @@ export default function Calendar() {
                           )}
                         />
 
-                        {/* Existing Client Selection */}
+                        {/* Existing Client Selection - Browser Button */}
                         {form.watch("clientType") === "existing" && (
-                          <FormField
-                            control={form.control}
-                            name="clientId"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormControl>
-                                  <div className="relative">
-                                    <select 
-                                      {...field}
-                                      value={field.value || ""}
-                                      onChange={(e) => {
-                                        const clientId = Number(e.target.value);
-                                        field.onChange(clientId || undefined);
-                                        
-                                        // Auto-fill phone number when client is selected
-                                        if (clientId && clients) {
-                                          const selectedClient = clients.find((c: any) => c.id === clientId);
-                                          if (selectedClient) {
-                                            form.setValue("clientPhone", selectedClient.phone);
-                                            form.setValue("clientName", `${selectedClient.firstName} ${selectedClient.lastName}`);
-                                          }
-                                        }
-                                      }}
-                                      className="w-full h-12 px-4 bg-gray-100 border-0 rounded-full text-base appearance-none focus:outline-none focus:ring-2 focus:ring-blue-200"
-                                    >
-                                      <option value="">Seleziona cliente dalla rubrica</option>
-                                      {clients?.map((client: any) => (
-                                        <option key={client.id} value={client.id}>
-                                          {client.firstName} {client.lastName} - {client.phone}
-                                        </option>
-                                      ))}
-                                    </select>
-                                    <div className="absolute right-4 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                                      <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                      </svg>
-                                    </div>
-                                  </div>
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
+                          <button
+                            type="button"
+                            onClick={() => setIsClientBrowserOpen(true)}
+                            className="w-full h-12 px-4 bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-200 rounded-full text-base font-medium text-blue-700 hover:from-blue-100 hover:to-blue-200 transition-all flex items-center justify-center space-x-2"
+                          >
+                            <Users className="h-5 w-5" />
+                            <span>
+                              {form.watch("clientId") 
+                                ? `Cliente: ${form.watch("clientName")}` 
+                                : "Sfoglia Rubrica Clienti"
+                              }
+                            </span>
+                            <Search className="h-4 w-4" />
+                          </button>
                         )}
 
                         {/* Client Name Input - Always visible and editable */}
                         <FormField
                           control={form.control}
                           name="clientName"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormControl>
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormControl>
                                 <input 
                                   {...field}
                                   placeholder={
@@ -911,37 +906,37 @@ export default function Calendar() {
                                   }
                                   className="w-full h-12 px-4 bg-white border border-gray-300 rounded-full text-base placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
                                 />
-                              </FormControl>
+                          </FormControl>
                               <FormMessage />
-                            </FormItem>
-                          )}
-                        />
+                        </FormItem>
+                      )}
+                    />
                       </div>
 
                       {/* Phone field - SECOND */}
                       <div className="space-y-2">
-                    <FormField
-                      control={form.control}
+                      <FormField
+                        control={form.control}
                           name="clientPhone"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormControl>
-                                <input 
-                                  {...field}
+                        render={({ field }) => (
+                          <FormItem>
+                              <FormControl>
+                              <input 
+                                {...field}
                                   placeholder="Numero di telefono" 
-                                  className="w-full h-12 px-4 bg-gray-100 border-0 rounded-full text-base placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                                className="w-full h-12 px-4 bg-gray-100 border-0 rounded-full text-base placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
                                   readOnly={form.watch("clientType") === "existing" && Boolean(form.watch("clientId"))}
-                                />
-                          </FormControl>
-                        </FormItem>
-                      )}
-                    />
+                              />
+                              </FormControl>
+                          </FormItem>
+                        )}
+                      />
 
                       </div>
 
                       {/* Time display - THIRD */}
                       <div className="space-y-2">
-                        <div className="text-left">
+                      <div className="text-left">
                           <label className="block text-sm font-medium text-gray-700 mb-1">Orario</label>
                           <div className="flex space-x-2">
                             <div className="flex-1">
@@ -1821,6 +1816,96 @@ export default function Calendar() {
           </DialogContent>
         </Dialog>
         
+        {/* Client Browser Dialog */}
+        <Dialog open={isClientBrowserOpen} onOpenChange={setIsClientBrowserOpen}>
+          <DialogContent className="max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden flex flex-col">
+            <DialogHeader>
+              <DialogTitle className="flex items-center space-x-2">
+                <Users className="h-5 w-5" />
+                <span>Rubrica Clienti</span>
+              </DialogTitle>
+            </DialogHeader>
+            
+            <div className="flex-1 flex flex-col space-y-4 overflow-hidden">
+              {/* Search Bar */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Cerca per nome o telefono..."
+                  value={clientSearchQuery}
+                  onChange={(e) => setClientSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  autoFocus
+                />
+              </div>
+              
+              {/* Results Count */}
+              <div className="text-sm text-gray-600">
+                {filteredClients.length} clienti trovati
+              </div>
+              
+              {/* Client List */}
+              <div className="flex-1 overflow-y-auto border border-gray-200 rounded-lg">
+                {filteredClients.length === 0 ? (
+                  <div className="p-8 text-center text-gray-500">
+                    <Users className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                    <div className="text-lg font-medium mb-2">Nessun cliente trovato</div>
+                    <div className="text-sm">Prova a modificare i termini di ricerca</div>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-gray-200">
+                    {filteredClients.map((client: any) => (
+                      <div
+                        key={client.id}
+                        onClick={() => selectClient(client)}
+                        className="p-4 hover:bg-blue-50 cursor-pointer transition-colors group"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <div className="font-medium text-gray-900 group-hover:text-blue-700">
+                              {client.firstName} {client.lastName}
+                            </div>
+                            <div className="text-sm text-gray-600 mt-1">
+                              {client.phone}
+                            </div>
+                            {client.email && (
+                              <div className="text-sm text-gray-500 mt-1">
+                                {client.email}
+                              </div>
+                            )}
+                          </div>
+                          <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="bg-blue-500 text-white px-3 py-1 rounded-full text-xs font-medium">
+                              Seleziona
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              
+              {/* Footer */}
+              <div className="flex justify-between items-center pt-4 border-t">
+                <div className="text-sm text-gray-500">
+                  Clicca su un cliente per selezionarlo
+                </div>
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setIsClientBrowserOpen(false);
+                    setClientSearchQuery("");
+                  }}
+                >
+                  Annulla
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
         {/* Drag Overlay */}
         <DragOverlay>
           {draggedAppointment ? (

@@ -1,0 +1,62 @@
+import { useDroppable } from '@dnd-kit/core';
+import { Plus } from 'lucide-react';
+
+interface DroppableTimeSlotProps {
+  time: string;
+  stylistId: number;
+  isOccupied: boolean;
+  children: React.ReactNode;
+  onEmptyClick: () => void;
+}
+
+export function DroppableTimeSlot({ 
+  time, 
+  stylistId, 
+  isOccupied, 
+  children, 
+  onEmptyClick 
+}: DroppableTimeSlotProps) {
+  const { isOver, setNodeRef } = useDroppable({
+    id: `time-slot-${stylistId}-${time}`,
+    data: {
+      time: time,
+      stylistId: stylistId,
+    },
+  });
+
+  return (
+    <div 
+      ref={setNodeRef}
+      className={`relative border-r border-gray-300 cursor-pointer transition-all duration-200 group ${
+        isOver && !isOccupied ? 'bg-green-100 border-green-400' : 'hover:bg-blue-50'
+      }`}
+      onClick={() => !isOccupied && onEmptyClick()}
+    >
+      {children}
+      
+      {/* Visual indicator for empty cells */}
+      {!isOccupied && (
+        <div className={`absolute inset-0 flex items-center justify-center transition-all duration-200 ${
+          isOver ? 'opacity-100 bg-green-50 border border-green-300 border-dashed rounded-lg m-2' :
+          'opacity-0 group-hover:opacity-100 bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-300 border-dashed rounded-lg m-2'
+        }`}>
+          <div className="text-center">
+            <Plus className={`h-6 w-6 mx-auto mb-1 ${isOver ? 'text-green-500' : 'text-blue-500'}`} />
+            <div className={`text-xs font-medium ${isOver ? 'text-green-600' : 'text-blue-600'}`}>
+              {isOver ? 'Rilascia qui' : 'Nuovo'}
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Drop zone indicator when dragging over occupied slot */}
+      {isOver && isOccupied && (
+        <div className="absolute inset-0 bg-red-100 border border-red-300 border-dashed rounded-lg m-2 flex items-center justify-center opacity-75">
+          <div className="text-center">
+            <div className="text-xs font-medium text-red-600">Slot occupato</div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+} 

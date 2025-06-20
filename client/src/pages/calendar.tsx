@@ -15,9 +15,11 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { format, addDays, subDays, startOfWeek, addWeeks, subWeeks, startOfMonth, endOfMonth, addMonths, subMonths, eachDayOfInterval, isSameMonth, isSameDay, isToday } from "date-fns";
 import { it } from "date-fns/locale";
-import { DndContext, DragEndEvent, DragOverlay, DragStartEvent } from '@dnd-kit/core';
+import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, useDroppable, useDraggable } from '@dnd-kit/core';
 import { DraggableAppointment } from "@/components/calendar/draggable-appointment";
 import { DroppableDay } from "@/components/calendar/droppable-day";
+import { DroppableTimeSlot } from "@/components/calendar/droppable-time-slot";
+import { DraggableDailyAppointment } from "@/components/calendar/draggable-daily-appointment";
 
 const appointmentSchema = z.object({
   clientType: z.enum(["new", "existing"], { required_error: "Tipo cliente è richiesto" }),
@@ -301,7 +303,26 @@ export default function Calendar() {
     }
   };
 
-  const updateExistingAppointment = (data: AppointmentForm) => {
+  const updateExistingAppointment = async (data: AppointmentForm) => {
+    try {
+      // If client name was changed, update the client first
+      if (data.clientName && editingAppointment.client) {
+        const currentFullName = `${editingAppointment.client.firstName} ${editingAppointment.client.lastName}`;
+        if (data.clientName !== currentFullName) {
+          const nameParts = data.clientName.split(' ');
+          const firstName = nameParts[0] || data.clientName;
+          const lastName = nameParts.slice(1).join(' ') || "";
+          
+          await apiRequest("PUT", `/api/clients/${editingAppointment.clientId}`, {
+            firstName,
+            lastName,
+            phone: data.clientPhone || editingAppointment.client.phone,
+            email: editingAppointment.client.email || "",
+            notes: editingAppointment.client.notes || "",
+          });
+        }
+      }
+
     // Calculate start and end times
     const startTime = `${data.startHour.toString().padStart(2, '0')}:${data.startMinute.toString().padStart(2, '0')}`;
     const startTimeMinutes = data.startHour * 60 + data.startMinute;
@@ -328,6 +349,13 @@ export default function Calendar() {
       id: editingAppointment.id, 
       data: updateData 
     });
+    } catch (error) {
+      toast({
+        title: "Errore",
+        description: "Impossibile aggiornare i dati del cliente",
+        variant: "destructive",
+      });
+    }
   };
 
   const cancelAppointment = (appointmentId: number) => {
@@ -336,6 +364,11 @@ export default function Calendar() {
     
     if (confirm(`Sei sicuro di voler cancellare l'appuntamento di ${clientName}?`)) {
       deleteAppointmentMutation.mutate(appointmentId);
+      // Close dialogs after deletion
+      setIsDialogOpen(false);
+      setIsAppointmentDetailOpen(false);
+      setEditingAppointment(null);
+      setSelectedAppointment(null);
     }
   };
 
@@ -379,12 +412,11 @@ export default function Calendar() {
 
     const appointmentId = draggedAppointment.id;
     const newDate = over.data.current?.date;
+    const newTime = over.data.current?.time;
+    const newStylistId = over.data.current?.stylistId;
     
-    if (!newDate) {
-      setDraggedAppointment(null);
-      return;
-    }
-
+    // Handle date change (monthly view)
+    if (newDate && !newTime) {
     // Check if we're actually moving to a different date
     const currentDate = draggedAppointment.date;
     if (currentDate === newDate) {
@@ -403,6 +435,40 @@ export default function Calendar() {
         stylistId: draggedAppointment.stylistId,
       }
     });
+    }
+    
+    // Handle time change (daily view)
+    if (newTime && newStylistId !== undefined) {
+      // Check if we're actually moving to a different time or stylist
+      const currentTime = draggedAppointment.startTime;
+      const currentStylistId = draggedAppointment.stylistId;
+      
+      if (currentTime === newTime && currentStylistId === newStylistId) {
+        setDraggedAppointment(null);
+        return;
+      }
+
+      // Calculate end time based on service duration
+      const [hours, minutes] = newTime.split(':').map(Number);
+      const duration = draggedAppointment.service?.duration || 30;
+      const endMinutes = minutes + duration;
+      const endHours = hours + Math.floor(endMinutes / 60);
+      const finalMinutes = endMinutes % 60;
+      const endTime = `${endHours.toString().padStart(2, '0')}:${finalMinutes.toString().padStart(2, '0')}`;
+
+      // Update the appointment with the new time and stylist
+      updateAppointmentMutation.mutate({
+        id: appointmentId,
+        data: {
+          date: draggedAppointment.date,
+          startTime: newTime,
+          endTime: endTime,
+          clientId: draggedAppointment.clientId,
+          serviceId: draggedAppointment.serviceId,
+          stylistId: newStylistId,
+        }
+      });
+    }
 
     setDraggedAppointment(null);
   };
@@ -735,25 +801,27 @@ export default function Calendar() {
                           />
                         )}
 
-                        {/* New Client Name Input */}
-                        {form.watch("clientType") === "new" && (
-                          <FormField
-                            control={form.control}
-                            name="clientName"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormControl>
-                                  <input 
-                                    {...field}
-                                    placeholder="Nome e cognome del nuovo cliente" 
-                                    className="w-full h-12 px-4 bg-gray-100 border-0 rounded-full text-base placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                                  />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                        )}
+                        {/* Client Name Input - Always visible and editable */}
+                        <FormField
+                          control={form.control}
+                          name="clientName"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormControl>
+                                <input 
+                                  {...field}
+                                  placeholder={
+                                    form.watch("clientType") === "existing" 
+                                      ? "Nome e cognome cliente (editabile)" 
+                                      : "Nome e cognome del nuovo cliente"
+                                  }
+                                  className="w-full h-12 px-4 bg-white border border-gray-300 rounded-full text-base placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
                       </div>
 
                       {/* Phone field - SECOND */}
@@ -978,9 +1046,16 @@ export default function Calendar() {
                             )}
                             
                             {/* Delete button */}
-                            <button type="button" className="p-2 text-red-500 hover:bg-red-50 rounded-md transition-colors">
+                            {editingAppointment && (
+                              <button 
+                                type="button" 
+                                onClick={() => cancelAppointment(editingAppointment.id)}
+                                className="p-2 text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                                title="Cancella appuntamento"
+                              >
                               <Trash2 className="h-4 w-4" />
                             </button>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -1391,53 +1466,22 @@ export default function Calendar() {
                                     <div className="text-sm font-medium text-gray-700">{time}</div>
                                   </div>
                                 </div>
-                                <div 
-                                  className="flex-1 min-h-[60px] relative hover:bg-blue-50 cursor-pointer transition-all duration-200"
-                                  onClick={() => !isOccupied && handleEmptyCellClick(stylist.id, time)}
+                                <DroppableTimeSlot
+                                  time={time}
+                                  stylistId={stylist.id}
+                                  isOccupied={isOccupied}
+                                  onEmptyClick={() => handleEmptyCellClick(stylist.id, time)}
                                 >
+                                  <div className="flex-1 min-h-[60px] relative">
                                   {appointmentAtStart && (
-                                    <div
-                                      className={`absolute inset-2 text-white text-sm p-3 rounded-lg shadow-lg z-10 cursor-pointer transition-all duration-200 ${
-                                        appointmentAtStart.type === 'suggested' 
-                                          ? 'bg-gradient-to-r from-orange-400 to-orange-500 border-l-4 border-orange-600' 
-                                          : 'bg-gradient-to-r from-blue-500 to-blue-600 border-l-4 border-blue-700'
-                                      }`}
-                                      style={{
-                                        height: `${getAppointmentHeight(appointmentAtStart.startTime, appointmentAtStart.endTime) * 60 - 8}px`,
-                                      }}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleAppointmentClick(appointmentAtStart);
-                                      }}
-                                    >
-                                      {appointmentAtStart.type === 'suggested' && (
-                                        <div className="absolute top-1 right-1 bg-white bg-opacity-20 rounded-full px-1 py-0.5">
-                                          <span className="text-xs font-bold">💡</span>
-                                        </div>
-                                      )}
-                                      <div className="font-bold text-sm leading-tight mb-1">
-                                        {appointmentAtStart.client.firstName} {appointmentAtStart.client.lastName}
-                                        {appointmentAtStart.type === 'suggested' && (
-                                          <span className="ml-1 text-xs opacity-90">(Suggerito)</span>
+                                      <DraggableDailyAppointment
+                                        appointment={appointmentAtStart}
+                                        height={getAppointmentHeight(appointmentAtStart.startTime, appointmentAtStart.endTime)}
+                                        onAppointmentClick={handleAppointmentClick}
+                                      />
                                         )}
                                       </div>
-                                      <div className="text-xs opacity-90 leading-tight mb-1">
-                                        {appointmentAtStart.service.name}
-                                      </div>
-                                      <div className="text-xs opacity-80 leading-tight">
-                                        {Math.round(appointmentAtStart.service.duration / 60 * 100) / 100}h • €{(appointmentAtStart.service.price / 100).toFixed(0)}
-                                      </div>
-                                    </div>
-                                  )}
-                                  {!isOccupied && (
-                                    <div className="absolute inset-0 opacity-0 hover:opacity-100 bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-300 border-dashed rounded-lg m-2 flex items-center justify-center transition-all duration-200">
-                                      <div className="text-center">
-                                        <Plus className="h-5 w-5 text-blue-500 mx-auto mb-1" />
-                                        <div className="text-xs text-blue-600 font-medium">Nuovo</div>
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
+                                </DroppableTimeSlot>
                               </div>
                             );
                           })}
@@ -1500,67 +1544,25 @@ export default function Calendar() {
                           const isOccupied = stylistAppointments.length > 0;
                           
                           return (
-                            <div 
+                            <DroppableTimeSlot
                               key={stylist.id} 
-                              className="relative border-r border-gray-300 hover:bg-blue-50 cursor-pointer transition-all duration-200 group"
-                              onClick={() => !isOccupied && handleEmptyCellClick(stylist.id, time)}
+                              time={time}
+                              stylistId={stylist.id}
+                              isOccupied={isOccupied}
+                              onEmptyClick={() => handleEmptyCellClick(stylist.id, time)}
                             >
                               {appointmentAtStart && (
-                                <div
-                                  className={`absolute inset-x-2 text-white text-sm p-3 rounded-lg shadow-lg z-10 cursor-pointer transition-all duration-200 transform hover:scale-105 ${
-                                    appointmentAtStart.type === 'suggested' 
-                                      ? 'bg-gradient-to-r from-orange-400 to-orange-500 border-l-4 border-orange-600 hover:from-orange-500 hover:to-orange-600' 
-                                      : 'bg-gradient-to-r from-blue-500 to-blue-600 border-l-4 border-blue-700 hover:from-blue-600 hover:to-blue-700'
-                                  }`}
-                                  style={{
-                                    height: `${getAppointmentHeight(appointmentAtStart.startTime, appointmentAtStart.endTime) * 60 - 4}px`,
-                                    top: '2px'
-                                  }}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleAppointmentClick(appointmentAtStart);
-                                  }}
-                                >
-                                  {appointmentAtStart.type === 'suggested' && (
-                                    <div className="absolute top-1 right-1 bg-white bg-opacity-20 rounded-full px-1 py-0.5">
-                                      <span className="text-xs font-bold">💡</span>
-                                    </div>
-                                  )}
-                                  <div className="font-bold truncate text-sm leading-tight mb-1">
-                                    {appointmentAtStart.client.firstName} {appointmentAtStart.client.lastName}
-                                    {appointmentAtStart.type === 'suggested' && (
-                                      <span className="ml-1 text-xs opacity-90">(Suggerito)</span>
-                                    )}
-                                  </div>
-                                  <div className="truncate opacity-90 text-xs leading-tight mb-1">
-                                    {appointmentAtStart.service.name}
-                                  </div>
-                                  {getAppointmentHeight(appointmentAtStart.startTime, appointmentAtStart.endTime) > 1 && (
-                                    <div className="text-xs opacity-80 leading-tight font-medium">
-                                      {Math.round(appointmentAtStart.service.duration / 60 * 100) / 100}h
-                                    </div>
-                                  )}
-                                  {getAppointmentHeight(appointmentAtStart.startTime, appointmentAtStart.endTime) > 2 && (
-                                    <div className="text-xs opacity-75 leading-tight mt-1">
-                                      €{(appointmentAtStart.service.price / 100).toFixed(0)}
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                              {/* Visual indicator for empty cells */}
-                              {!isOccupied && (
-                                <div className="absolute inset-0 opacity-0 group-hover:opacity-100 bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-300 border-dashed rounded-lg m-2 flex items-center justify-center transition-all duration-200">
-                                  <div className="text-center">
-                                    <Plus className="h-6 w-6 text-blue-500 mx-auto mb-1" />
-                                    <div className="text-xs text-blue-600 font-medium">Nuovo</div>
-                                  </div>
-                                </div>
+                                <DraggableDailyAppointment
+                                  appointment={appointmentAtStart}
+                                  height={getAppointmentHeight(appointmentAtStart.startTime, appointmentAtStart.endTime)}
+                                  onAppointmentClick={handleAppointmentClick}
+                                />
                               )}
                               {/* Time indicator lines */}
                               {timeIndex % 2 === 0 && (
                                 <div className="absolute left-0 right-0 top-0 h-px bg-gray-300"></div>
                               )}
-                            </div>
+                            </DroppableTimeSlot>
                           );
                         })}
                 </div>
@@ -1657,7 +1659,13 @@ export default function Calendar() {
                             <SelectItem value="2.00h">2.00h</SelectItem>
                           </SelectContent>
                         </Select>
-                        <Button variant="ghost" size="sm" className="h-8 w-8 sm:h-10 sm:w-10 p-0 text-red-500 hover:bg-red-50">
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-8 w-8 sm:h-10 sm:w-10 p-0 text-red-500 hover:bg-red-50"
+                          onClick={() => selectedAppointment && cancelAppointment(selectedAppointment.id)}
+                          title="Cancella appuntamento"
+                        >
                           <Trash2 className="h-4 w-4 sm:h-5 sm:w-5" />
                         </Button>
                       </div>

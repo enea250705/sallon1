@@ -29,7 +29,7 @@ export function DroppableTimeSlot({
   return (
     <div 
       ref={setNodeRef}
-      className={`relative border-r border-gray-300 cursor-pointer transition-all duration-200 group ${
+      className={`relative w-full h-full cursor-pointer transition-all duration-200 group ${
         isOver && !isOccupied ? 'bg-green-100 border-green-400' : 
         hasPendingPaste && !isOccupied ? 'bg-orange-50 hover:bg-orange-100 border-orange-200' :
         'hover:bg-blue-50'

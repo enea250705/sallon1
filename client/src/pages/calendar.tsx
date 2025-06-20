@@ -193,11 +193,10 @@ export default function Calendar() {
       const startTime = `${data.startHour.toString().padStart(2, '0')}:${data.startMinute.toString().padStart(2, '0')}`;
       const startTimeMinutes = data.startHour * 60 + data.startMinute;
       
-      // Get service duration
-      const service = services?.find(s => s.id === data.serviceId);
-      const duration = service?.duration || 30; // default to 30 minutes if not found
+      // Get duration from manual override or service default
+      const durationMinutes = parseInt(mainServiceDuration.replace('m', ''));
       
-      const endTimeMinutes = startTimeMinutes + duration;
+      const endTimeMinutes = startTimeMinutes + durationMinutes;
       const endHours = Math.floor(endTimeMinutes / 60);
       const endMins = endTimeMinutes % 60;
       const endTime = `${endHours.toString().padStart(2, '0')}:${endMins.toString().padStart(2, '0')}`;
@@ -583,11 +582,9 @@ export default function Calendar() {
     return totalMinutes / 30; // Each slot is 30 minutes
   };
 
-  // Helper function to get appointment height based on duration
+  // Helper function to get appointment height - always 1 slot (30 minutes)
   const getAppointmentHeight = (startTime: string, endTime: string) => {
-    const start = timeToPosition(startTime);
-    const end = timeToPosition(endTime);
-    return Math.max(1, end - start); // Minimum 1 slot height
+    return 1; // Always occupy only one time slot (30 minutes)
   };
 
   // Function to handle appointment click
@@ -816,9 +813,9 @@ export default function Calendar() {
                     <FormField
                       control={form.control}
                           name="clientType"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormControl>
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormControl>
                                 <div className="flex space-x-2">
                                   <button
                                     type="button"
@@ -852,10 +849,10 @@ export default function Calendar() {
                                     Nuovo Cliente
                                   </button>
                                 </div>
-                              </FormControl>
-                            </FormItem>
-                          )}
-                        />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
 
                         {/* Existing Client Selection - Browse Button */}
                         {form.watch("clientType") === "existing" && (
@@ -870,7 +867,7 @@ export default function Calendar() {
                               {form.watch("clientName") || "Sfoglia Rubrica Clienti"}
                             </Button>
                             {form.watch("clientId") && (
-                              <div className="text-center">
+                        <div className="text-center">
                                 <Button
                                   type="button"
                                   variant="ghost"
@@ -884,20 +881,20 @@ export default function Calendar() {
                                 >
                                   Deseleziona cliente
                                 </Button>
-                              </div>
-                            )}
                           </div>
+                            )}
+                        </div>
                         )}
 
                         {/* Client Name Input - Always visible and editable */}
-                        <FormField
-                          control={form.control}
-                          name="clientName"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormControl>
-                                <input 
-                                  {...field}
+                      <FormField
+                        control={form.control}
+                        name="clientName"
+                        render={({ field }) => (
+                          <FormItem>
+                              <FormControl>
+                              <input 
+                                {...field}
                                   placeholder={
                                     form.watch("clientType") === "existing" 
                                       ? "Nome e cognome cliente (editabile)" 
@@ -1527,22 +1524,17 @@ export default function Calendar() {
                         {/* Time slots for this stylist */}
                         <div className="divide-y divide-gray-100">
                           {timeSlots.map((time, timeIndex) => {
-                            const stylistAppointments = dayAppointments.filter(apt => {
+                            const appointmentAtStart = dayAppointments.find(apt => {
                               // Validate appointment has required fields
-                              if (!apt.stylistId || !apt.startTime || !apt.endTime) {
+                              if (!apt.stylistId || !apt.startTime) {
                                 return false;
                               }
                               
                               return apt.stylistId === stylist.id &&
-                              timeToPosition(apt.startTime) <= timeIndex &&
-                                timeToPosition(apt.endTime) > timeIndex;
+                                timeToPosition(apt.startTime) === timeIndex;
                             });
                             
-                            const appointmentAtStart = stylistAppointments.find(apt => 
-                              timeToPosition(apt.startTime) === timeIndex
-                            );
-                            
-                            const isOccupied = stylistAppointments.length > 0;
+                            const isOccupied = appointmentAtStart !== undefined;
                             
                             return (
                               <div key={time} className="flex">
@@ -1609,47 +1601,47 @@ export default function Calendar() {
                         
                         {/* Stylist columns */}
                         {filteredStylists.map((stylist: any, stylistIndex) => {
-                          // Find appointments for this stylist at this time
-                          const stylistAppointments = dayAppointments.filter(apt => {
+                          // Find appointments for this stylist that START at this exact time
+                          const appointmentAtStart = dayAppointments.find(apt => {
                             // Validate appointment has required fields
-                            if (!apt.stylistId || !apt.startTime || !apt.endTime) {
+                            if (!apt.stylistId || !apt.startTime) {
                               return false;
                             }
                             
                             return apt.stylistId === stylist.id &&
-                            timeToPosition(apt.startTime) <= timeIndex &&
-                              timeToPosition(apt.endTime) > timeIndex;
+                              timeToPosition(apt.startTime) === timeIndex;
                           });
                           
-                          // Only render appointment block at start time
-                          const appointmentAtStart = stylistAppointments.find(apt => 
-                            timeToPosition(apt.startTime) === timeIndex
-                          );
-                          
-                          // Check if this cell is occupied by any appointment
-                          const isOccupied = stylistAppointments.length > 0;
+                          // Check if this cell is occupied by an appointment starting here
+                          const isOccupied = appointmentAtStart !== undefined;
                           
                           return (
-                            <DroppableTimeSlot
-                              key={stylist.id} 
-                              time={time}
-                              stylistId={stylist.id}
-                              isOccupied={isOccupied}
-                              onEmptyClick={() => handleEmptyCellClick(stylist.id, time)}
-                              hasPendingPaste={!!clipboardAppointment}
+                            <div
+                              key={stylist.id}
+                              className="relative border-r border-gray-300"
                             >
-                              {appointmentAtStart && (
-                                <DraggableDailyAppointment
-                                  appointment={appointmentAtStart}
-                                  height={getAppointmentHeight(appointmentAtStart.startTime, appointmentAtStart.endTime)}
-                                  onAppointmentClick={handleAppointmentClick}
-                                />
-                              )}
-                              {/* Time indicator lines */}
-                              {timeIndex % 2 === 0 && (
-                                <div className="absolute left-0 right-0 top-0 h-px bg-gray-300"></div>
-                              )}
-                            </DroppableTimeSlot>
+                              <DroppableTimeSlot
+                                time={time}
+                                stylistId={stylist.id}
+                                isOccupied={isOccupied}
+                                onEmptyClick={() => handleEmptyCellClick(stylist.id, time)}
+                                hasPendingPaste={!!clipboardAppointment}
+                              >
+                                <div className="absolute inset-0">
+                                  {appointmentAtStart && (
+                                    <DraggableDailyAppointment
+                                      appointment={appointmentAtStart}
+                                      height={getAppointmentHeight(appointmentAtStart.startTime, appointmentAtStart.endTime)}
+                                      onAppointmentClick={handleAppointmentClick}
+                                    />
+                                  )}
+                                </div>
+                                {/* Time indicator lines */}
+                                {timeIndex % 2 === 0 && (
+                                  <div className="absolute left-0 right-0 top-0 h-px bg-gray-300"></div>
+                                )}
+                              </DroppableTimeSlot>
+                            </div>
                           );
                         })}
                 </div>

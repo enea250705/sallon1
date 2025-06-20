@@ -32,8 +32,7 @@ export function DraggableDailyAppointment({
 
   const combinedStyle = {
     ...style,
-    height: `${height * 60 - 4}px`,
-    top: '2px'
+    height: `56px`, // Fixed height for single time slot (60px - 4px padding)
   };
 
   return (
@@ -41,7 +40,7 @@ export function DraggableDailyAppointment({
       ref={setNodeRef}
       style={combinedStyle}
       {...attributes}
-      className={`absolute inset-x-2 text-white text-sm rounded-lg shadow-lg transition-all duration-200 ${
+      className={`relative w-full text-white text-sm rounded-lg shadow-lg transition-all duration-200 mx-2 ${
         isDragging ? 'opacity-50 z-50' : 'z-10'
       } ${
         appointment.type === 'suggested' 

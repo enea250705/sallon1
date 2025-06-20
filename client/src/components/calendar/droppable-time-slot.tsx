@@ -1,5 +1,5 @@
 import { useDroppable } from '@dnd-kit/core';
-import { Plus } from 'lucide-react';
+import { Plus, Clipboard } from 'lucide-react';
 
 interface DroppableTimeSlotProps {
   time: string;
@@ -7,6 +7,7 @@ interface DroppableTimeSlotProps {
   isOccupied: boolean;
   children: React.ReactNode;
   onEmptyClick: () => void;
+  hasPendingPaste?: boolean;
 }
 
 export function DroppableTimeSlot({ 
@@ -14,7 +15,8 @@ export function DroppableTimeSlot({
   stylistId, 
   isOccupied, 
   children, 
-  onEmptyClick 
+  onEmptyClick,
+  hasPendingPaste = false
 }: DroppableTimeSlotProps) {
   const { isOver, setNodeRef } = useDroppable({
     id: `time-slot-${stylistId}-${time}`,
@@ -28,7 +30,9 @@ export function DroppableTimeSlot({
     <div 
       ref={setNodeRef}
       className={`relative border-r border-gray-300 cursor-pointer transition-all duration-200 group ${
-        isOver && !isOccupied ? 'bg-green-100 border-green-400' : 'hover:bg-blue-50'
+        isOver && !isOccupied ? 'bg-green-100 border-green-400' : 
+        hasPendingPaste && !isOccupied ? 'bg-orange-50 hover:bg-orange-100 border-orange-200' :
+        'hover:bg-blue-50'
       }`}
       onClick={() => !isOccupied && onEmptyClick()}
     >
@@ -38,13 +42,23 @@ export function DroppableTimeSlot({
       {!isOccupied && (
         <div className={`absolute inset-0 flex items-center justify-center transition-all duration-200 ${
           isOver ? 'opacity-100 bg-green-50 border border-green-300 border-dashed rounded-lg m-2' :
+          hasPendingPaste ? 'opacity-100 bg-orange-50 border border-orange-300 border-dashed rounded-lg m-2' :
           'opacity-0 group-hover:opacity-100 bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-300 border-dashed rounded-lg m-2'
         }`}>
           <div className="text-center">
-            <Plus className={`h-6 w-6 mx-auto mb-1 ${isOver ? 'text-green-500' : 'text-blue-500'}`} />
-            <div className={`text-xs font-medium ${isOver ? 'text-green-600' : 'text-blue-600'}`}>
-              {isOver ? 'Rilascia qui' : 'Nuovo'}
-            </div>
+            {hasPendingPaste ? (
+              <>
+                <Clipboard className="h-6 w-6 mx-auto mb-1 text-orange-500" />
+                <div className="text-xs font-medium text-orange-600">Incolla qui</div>
+              </>
+            ) : (
+              <>
+                <Plus className={`h-6 w-6 mx-auto mb-1 ${isOver ? 'text-green-500' : 'text-blue-500'}`} />
+                <div className={`text-xs font-medium ${isOver ? 'text-green-600' : 'text-blue-600'}`}>
+                  {isOver ? 'Rilascia qui' : 'Nuovo'}
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

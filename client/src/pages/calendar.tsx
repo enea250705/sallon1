@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Calendar as CalendarIcon, Clock, User, Scissors, ChevronLeft, ChevronRight, X, Check, Trash2 } from "lucide-react";
+import { Plus, Calendar as CalendarIcon, Clock, User, Scissors, ChevronLeft, ChevronRight, X, Check, Trash2, Clipboard } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { format, addDays, subDays, startOfWeek, addWeeks, subWeeks, startOfMonth, endOfMonth, addMonths, subMonths, eachDayOfInterval, isSameMonth, isSameDay, isToday } from "date-fns";
@@ -60,6 +60,9 @@ export default function Calendar() {
   const [cleaningTime, setCleaningTime] = useState("0m");
   const [manualDurationOverride, setManualDurationOverride] = useState(false);
   const [editingAppointment, setEditingAppointment] = useState<any>(null);
+  // Cut & Paste state
+  const [clipboardAppointment, setClipboardAppointment] = useState<any>(null);
+  const [isCutMode, setIsCutMode] = useState(false);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -372,6 +375,67 @@ export default function Calendar() {
     }
   };
 
+  // Cut & Paste functions
+  const cutAppointment = (appointment: any) => {
+    setClipboardAppointment(appointment);
+    setIsCutMode(true);
+    setIsAppointmentDetailOpen(false);
+    toast({
+      title: "Appuntamento tagliato",
+      description: `${appointment.client.firstName} ${appointment.client.lastName} - Vai su un altro giorno e clicca "Incolla"`,
+    });
+  };
+
+  const pasteAppointment = (targetDate: string, targetStylistId?: number, targetTime?: string) => {
+    if (!clipboardAppointment) return;
+
+    const newData: any = {
+      date: targetDate,
+      clientId: clipboardAppointment.clientId,
+      serviceId: clipboardAppointment.serviceId,
+      stylistId: targetStylistId || clipboardAppointment.stylistId,
+    };
+
+    // If specific time is provided, use it; otherwise keep original time
+    if (targetTime) {
+      const [hours, minutes] = targetTime.split(':').map(Number);
+      const duration = clipboardAppointment.service?.duration || 30;
+      const endMinutes = minutes + duration;
+      const endHours = hours + Math.floor(endMinutes / 60);
+      const finalMinutes = endMinutes % 60;
+      
+      newData.startTime = targetTime;
+      newData.endTime = `${endHours.toString().padStart(2, '0')}:${finalMinutes.toString().padStart(2, '0')}`;
+    } else {
+      newData.startTime = clipboardAppointment.startTime;
+      newData.endTime = clipboardAppointment.endTime;
+    }
+
+    // Update the appointment
+    updateAppointmentMutation.mutate({
+      id: clipboardAppointment.id,
+      data: newData
+    });
+
+    // Clear clipboard
+    setClipboardAppointment(null);
+    setIsCutMode(false);
+    
+    toast({
+      title: "Appuntamento incollato",
+      description: `${clipboardAppointment.client.firstName} ${clipboardAppointment.client.lastName} spostato con successo`,
+    });
+  };
+
+  const cancelCut = () => {
+    setClipboardAppointment(null);
+    setIsCutMode(false);
+    toast({
+      title: "Operazione annullata",
+      description: "Taglia e incolla annullato",
+    });
+  };
+
   // Navigation functions
   const navigateToday = () => setSelectedDate(new Date());
   const navigatePrevious = () => {
@@ -603,7 +667,13 @@ export default function Calendar() {
 
   // Function to handle empty cell click for new appointment
   const handleEmptyCellClick = (stylistId: number, timeSlot: string) => {
-    // Set default values for creating new appointment
+    // If there's something in clipboard, paste it
+    if (clipboardAppointment) {
+      pasteAppointment(format(selectedDate, "yyyy-MM-dd"), stylistId, timeSlot);
+      return;
+    }
+    
+    // Otherwise set default values for creating new appointment
     const [hours, minutes] = timeSlot.split(':').map(Number);
     form.reset({
       date: format(selectedDate, "yyyy-MM-dd"),
@@ -642,13 +712,37 @@ export default function Calendar() {
             <h1 className="text-3xl font-bold text-gray-900">Appuntamenti</h1>
             <p className="text-gray-600">Gestisci tutti gli appuntamenti del salone</p>
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700">
-                <Plus className="h-4 w-4 mr-2" />
-                Nuovo Appuntamento
-              </Button>
-            </DialogTrigger>
+          <div className="flex items-center space-x-3">
+            {/* Paste Button - only visible when there's something to paste */}
+            {clipboardAppointment && (
+              <div className="flex items-center space-x-2">
+                <Button 
+                  variant="outline"
+                  className="bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-100"
+                  onClick={() => pasteAppointment(format(selectedDate, "yyyy-MM-dd"))}
+                >
+                  <Clipboard className="h-4 w-4 mr-2" />
+                  Incolla qui
+                </Button>
+                <Button 
+                  variant="ghost"
+                  size="sm"
+                  className="text-gray-500 hover:text-gray-700"
+                  onClick={cancelCut}
+                  title="Annulla taglia e incolla"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+            
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Nuovo Appuntamento
+                </Button>
+              </DialogTrigger>
             <DialogContent className="sm:max-w-[420px] p-0 hide-close-button">
               <div className="bg-white rounded-lg">
                 {/* Header */}
@@ -1251,6 +1345,7 @@ export default function Calendar() {
               </div>
             </DialogContent>
           </Dialog>
+          </div>
         </div>
 
         {/* Calendar Navigation */}
@@ -1471,6 +1566,7 @@ export default function Calendar() {
                                   stylistId={stylist.id}
                                   isOccupied={isOccupied}
                                   onEmptyClick={() => handleEmptyCellClick(stylist.id, time)}
+                                  hasPendingPaste={!!clipboardAppointment}
                                 >
                                   <div className="flex-1 min-h-[60px] relative">
                                   {appointmentAtStart && (
@@ -1550,6 +1646,7 @@ export default function Calendar() {
                               stylistId={stylist.id}
                               isOccupied={isOccupied}
                               onEmptyClick={() => handleEmptyCellClick(stylist.id, time)}
+                              hasPendingPaste={!!clipboardAppointment}
                             >
                               {appointmentAtStart && (
                                 <DraggableDailyAppointment
@@ -1588,6 +1685,16 @@ export default function Calendar() {
                     onClick={() => selectedAppointment && handleEditAppointment(selectedAppointment)}
                   >
                     Modifica
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="h-8 px-3 sm:h-10 sm:px-4 text-xs sm:text-sm text-orange-600 border-orange-200 hover:bg-orange-50"
+                    onClick={() => selectedAppointment && cutAppointment(selectedAppointment)}
+                    title="Taglia appuntamento per spostarlo"
+                  >
+                    <Scissors className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                    Taglia
                   </Button>
                   <Button 
                     variant="ghost" 

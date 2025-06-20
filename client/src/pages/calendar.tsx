@@ -70,6 +70,7 @@ export default function Calendar() {
       clientType: "new",
       clientName: "",
       clientPhone: "",
+      clientId: undefined,
       date: format(selectedDate, "yyyy-MM-dd"),
       startHour: 9,
       startMinute: 0,
@@ -430,7 +431,13 @@ export default function Calendar() {
 
   // Helper function to convert time to grid position
   const timeToPosition = (time: string) => {
+    if (!time || typeof time !== 'string') {
+      return 0;
+    }
     const [hours, minutes] = time.split(':').map(Number);
+    if (isNaN(hours) || isNaN(minutes)) {
+      return 0;
+    }
     const totalMinutes = (hours - 8) * 60 + minutes;
     return totalMinutes / 30; // Each slot is 30 minutes
   };
@@ -540,6 +547,7 @@ export default function Calendar() {
       clientType: "new",
       clientName: "",
       clientPhone: "",
+      clientId: undefined,
       serviceId: undefined, // Set to undefined to show placeholder
     });
     // Reset additional services and durations
@@ -633,7 +641,122 @@ export default function Calendar() {
 
               <Form {...form}>
                     <form id="appointment-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                      {/* Phone field - real data */}
+                      
+                      {/* Client Selection/Name field - FIRST */}
+                      <div className="space-y-2">
+                        <FormField
+                          control={form.control}
+                          name="clientType"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormControl>
+                                <div className="flex space-x-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      field.onChange("existing");
+                                      form.setValue("clientName", "");
+                                      form.setValue("clientPhone", "");
+                                    }}
+                                    className={`flex-1 h-12 px-4 rounded-full text-base font-medium transition-all ${
+                                      field.value === "existing" 
+                                        ? 'bg-blue-500 text-white' 
+                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                    }`}
+                                  >
+                                    Cliente Esistente
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      field.onChange("new");
+                                      form.setValue("clientId", undefined);
+                                      form.setValue("clientName", "");
+                                      form.setValue("clientPhone", "");
+                                    }}
+                                    className={`flex-1 h-12 px-4 rounded-full text-base font-medium transition-all ${
+                                      field.value === "new" 
+                                        ? 'bg-blue-500 text-white' 
+                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                    }`}
+                                  >
+                                    Nuovo Cliente
+                                  </button>
+                                </div>
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+
+                        {/* Existing Client Selection */}
+                        {form.watch("clientType") === "existing" && (
+                          <FormField
+                            control={form.control}
+                            name="clientId"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormControl>
+                                  <div className="relative">
+                                    <select 
+                                      {...field}
+                                      value={field.value || ""}
+                                      onChange={(e) => {
+                                        const clientId = Number(e.target.value);
+                                        field.onChange(clientId || undefined);
+                                        
+                                        // Auto-fill phone number when client is selected
+                                        if (clientId && clients) {
+                                          const selectedClient = clients.find((c: any) => c.id === clientId);
+                                          if (selectedClient) {
+                                            form.setValue("clientPhone", selectedClient.phone);
+                                            form.setValue("clientName", `${selectedClient.firstName} ${selectedClient.lastName}`);
+                                          }
+                                        }
+                                      }}
+                                      className="w-full h-12 px-4 bg-gray-100 border-0 rounded-full text-base appearance-none focus:outline-none focus:ring-2 focus:ring-blue-200"
+                                    >
+                                      <option value="">Seleziona cliente dalla rubrica</option>
+                                      {clients?.map((client: any) => (
+                                        <option key={client.id} value={client.id}>
+                                          {client.firstName} {client.lastName} - {client.phone}
+                                        </option>
+                                      ))}
+                                    </select>
+                                    <div className="absolute right-4 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                                      <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                      </svg>
+                                    </div>
+                                  </div>
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        )}
+
+                        {/* New Client Name Input */}
+                        {form.watch("clientType") === "new" && (
+                          <FormField
+                            control={form.control}
+                            name="clientName"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormControl>
+                                  <input 
+                                    {...field}
+                                    placeholder="Nome e cognome del nuovo cliente" 
+                                    className="w-full h-12 px-4 bg-gray-100 border-0 rounded-full text-base placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        )}
+                      </div>
+
+                      {/* Phone field - SECOND */}
                       <div className="space-y-2">
                     <FormField
                       control={form.control}
@@ -643,8 +766,9 @@ export default function Calendar() {
                           <FormControl>
                                 <input 
                                   {...field}
-                                  placeholder="Telefono" 
+                                  placeholder="Numero di telefono" 
                                   className="w-full h-12 px-4 bg-gray-100 border-0 rounded-full text-base placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                                  readOnly={form.watch("clientType") === "existing" && Boolean(form.watch("clientId"))}
                                 />
                           </FormControl>
                         </FormItem>
@@ -657,34 +781,65 @@ export default function Calendar() {
                         </div>
                       </div>
 
-                      {/* Email/Name field - real data */}
+                      {/* Time display - THIRD */}
+                      <div className="space-y-2">
+                        <div className="text-left">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Orario</label>
+                          <div className="flex space-x-2">
+                            <div className="flex-1">
                       <FormField
                         control={form.control}
-                        name="clientName"
+                                name="startHour"
                         render={({ field }) => (
                           <FormItem>
                               <FormControl>
-                              <input 
+                                      <select 
                                 {...field}
-                                placeholder="Nome Cliente" 
-                                className="w-full h-12 px-4 bg-gray-100 border-0 rounded-full text-base placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                                        value={field.value || 9}
+                                        onChange={(e) => field.onChange(Number(e.target.value))}
+                                        className="w-full h-12 px-4 bg-gray-100 border-0 rounded-full text-base focus:outline-none focus:ring-2 focus:ring-blue-200 appearance-none"
+                                      >
+                                        {Array.from({ length: 12 }, (_, i) => i + 8).map(hour => (
+                                          <option key={hour} value={hour}>
+                                            {hour.toString().padStart(2, '0')}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </FormControl>
+                                  </FormItem>
+                                )}
                               />
+                            </div>
+                            <div className="flex items-center text-lg font-medium text-gray-600">:</div>
+                            <div className="flex-1">
+                              <FormField
+                                control={form.control}
+                                name="startMinute"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormControl>
+                                      <select 
+                                        {...field}
+                                        value={field.value || 0}
+                                        onChange={(e) => field.onChange(Number(e.target.value))}
+                                        className="w-full h-12 px-4 bg-gray-100 border-0 rounded-full text-base focus:outline-none focus:ring-2 focus:ring-blue-200 appearance-none"
+                                      >
+                                        {[0, 15, 30, 45].map(minute => (
+                                          <option key={minute} value={minute}>
+                                            {minute.toString().padStart(2, '0')}
+                                          </option>
+                                        ))}
+                                      </select>
                               </FormControl>
                           </FormItem>
                         )}
                       />
-
-                      {/* Time display - dynamic */}
-                      <div className="text-left">
-                        <div className="text-lg font-medium text-gray-800">
-                          {form.watch('startHour') !== undefined && form.watch('startMinute') !== undefined
-                            ? `${form.watch('startHour')?.toString().padStart(2, '0')}:${form.watch('startMinute')?.toString().padStart(2, '0')}`
-                            : '09:00'
-                          }
+                            </div>
+                          </div>
                         </div>
                       </div>
 
-                      {/* Service box - real data */}
+                      {/* Service box - FOURTH */}
                       <div className="bg-gray-100 rounded-lg p-4">
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
@@ -1010,28 +1165,6 @@ export default function Calendar() {
                       <FormItem>
                         <FormControl>
                                 <Input type="number" {...field} />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                          name="startMinute"
-                    render={({ field }) => (
-                      <FormItem>
-                          <FormControl>
-                                <Input type="number" {...field} />
-                          </FormControl>
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                          name="clientType"
-                    render={({ field }) => (
-                      <FormItem>
-                          <FormControl>
-                                <Input {...field} value="new" />
                           </FormControl>
                       </FormItem>
                     )}
@@ -1234,11 +1367,16 @@ export default function Calendar() {
                         {/* Time slots for this stylist */}
                         <div className="divide-y divide-gray-100">
                           {timeSlots.map((time, timeIndex) => {
-                            const stylistAppointments = dayAppointments.filter(apt => 
-                              apt.stylistId === stylist.id &&
+                            const stylistAppointments = dayAppointments.filter(apt => {
+                              // Validate appointment has required fields
+                              if (!apt.stylistId || !apt.startTime || !apt.endTime) {
+                                return false;
+                              }
+                              
+                              return apt.stylistId === stylist.id &&
                               timeToPosition(apt.startTime) <= timeIndex &&
-                              timeToPosition(apt.endTime) > timeIndex
-                            );
+                                timeToPosition(apt.endTime) > timeIndex;
+                            });
                             
                             const appointmentAtStart = stylistAppointments.find(apt => 
                               timeToPosition(apt.startTime) === timeIndex
@@ -1342,11 +1480,16 @@ export default function Calendar() {
                         {/* Stylist columns */}
                         {filteredStylists.map((stylist: any, stylistIndex) => {
                           // Find appointments for this stylist at this time
-                          const stylistAppointments = dayAppointments.filter(apt => 
-                            apt.stylistId === stylist.id &&
+                          const stylistAppointments = dayAppointments.filter(apt => {
+                            // Validate appointment has required fields
+                            if (!apt.stylistId || !apt.startTime || !apt.endTime) {
+                              return false;
+                            }
+                            
+                            return apt.stylistId === stylist.id &&
                             timeToPosition(apt.startTime) <= timeIndex &&
-                            timeToPosition(apt.endTime) > timeIndex
-                          );
+                              timeToPosition(apt.endTime) > timeIndex;
+                          });
                           
                           // Only render appointment block at start time
                           const appointmentAtStart = stylistAppointments.find(apt => 

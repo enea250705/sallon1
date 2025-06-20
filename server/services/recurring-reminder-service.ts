@@ -85,6 +85,21 @@ export class RecurringReminderService {
     try {
       console.log(`📤 Processing reminder for ${reminder.client.firstName} ${reminder.client.lastName}`);
 
+      // Calculate next reminder date
+      const nextDate = this.calculateNextReminderDate(
+        reminder.frequency,
+        reminder.dayOfWeek,
+        reminder.dayOfMonth
+      );
+
+      // Create real appointment for the next date automatically
+      try {
+        await storage.createAppointmentFromReminder(reminder.id, nextDate);
+        console.log(`📅 Automatic appointment created for ${nextDate}`);
+      } catch (appointmentError) {
+        console.error(`❌ Error creating automatic appointment:`, appointmentError);
+      }
+
       // Create the reminder message
       const message = this.createReminderMessage(reminder);
 
@@ -92,13 +107,6 @@ export class RecurringReminderService {
       const success = await this.sendWhatsAppMessage(reminder.client.phone, message);
 
       if (success) {
-        // Calculate next reminder date
-        const nextDate = this.calculateNextReminderDate(
-          reminder.frequency,
-          reminder.dayOfWeek,
-          reminder.dayOfMonth
-        );
-
         // Update the reminder with next date
         await storage.updateNextReminderDate(reminder.id, nextDate);
 

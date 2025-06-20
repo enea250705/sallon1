@@ -84,6 +84,7 @@ export interface IStorage {
   
   // Recurring reminders
   createRecurringReminder(reminder: InsertRecurringReminder): Promise<RecurringReminder>;
+  createAppointmentFromReminder(reminderId: number, appointmentDate: string): Promise<void>;
   getRecurringReminder(id: number): Promise<RecurringReminderWithDetails | undefined>;
   getAllRecurringReminders(): Promise<RecurringReminderWithDetails[]>;
   getClientRecurringReminders(clientId: number): Promise<RecurringReminderWithDetails[]>;
@@ -625,7 +626,43 @@ export class DatabaseStorage implements IStorage {
       ...reminderData,
       nextReminderDate,
     }).returning();
+
+    // Automatically create the first real appointment for this reminder
+    try {
+      await this.createAppointmentFromReminder(reminder.id, nextReminderDate);
+      console.log(`✅ First appointment created for reminder ${reminder.id} on ${nextReminderDate}`);
+    } catch (error) {
+      // Don't fail the reminder creation if appointment creation fails
+      console.error('Error creating automatic appointment for recurring reminder:', error);
+    }
+
     return reminder;
+  }
+
+  // Helper method to create appointment from reminder with proper validation
+  async createAppointmentFromReminder(reminderId: number, appointmentDate: string): Promise<void> {
+    const reminder = await this.getRecurringReminder(reminderId);
+    if (!reminder) {
+      throw new Error('Reminder not found');
+    }
+
+    const startTime = reminder.preferredTime || '09:00';
+    const endTime = this.calculateEndTime(startTime, reminder.service.duration);
+
+    // Create the appointment with the exact same structure as form-created appointments
+    const appointmentData: InsertAppointment = {
+      clientId: reminder.clientId,
+      stylistId: reminder.stylistId,
+      serviceId: reminder.serviceId,
+      date: appointmentDate,
+      startTime: startTime,
+      endTime: endTime,
+      status: 'scheduled',
+      notes: `Appuntamento dal promemoria ricorrente ${reminder.frequency}`
+    };
+
+    await this.createAppointment(appointmentData);
+    console.log(`📅 Appointment created from reminder: ${reminder.client.firstName} ${reminder.client.lastName} on ${appointmentDate} at ${startTime}`);
   }
 
   async getRecurringReminder(id: number): Promise<RecurringReminderWithDetails | undefined> {
@@ -818,50 +855,34 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  // Suggested appointments from recurring reminders
+  // Create real appointments from recurring reminders for specific date
   async getSuggestedAppointmentsByDate(date: string): Promise<any[]> {
     try {
       const allReminders = await this.getAllRecurringReminders();
       const existingAppointments = await this.getAppointmentsByDate(date);
-      const suggestedAppointments = [];
 
       for (const reminder of allReminders) {
-        const suggestedDate = this.calculateNextSuggestedDate(reminder, date);
+        // Use the same logic as date range - calculate all possible dates and check if our date matches
+        const possibleDates = this.calculateRecurringDatesInRange(reminder, date, date);
         
-        if (suggestedDate === date) {
-          const startTime = reminder.preferredTime || '09:00';
-          
+        if (possibleDates.includes(date)) {
           // Check if there's already an appointment for this client on this date
           const existingAppointment = existingAppointments.find(apt => 
             apt.clientId === reminder.clientId && 
             apt.date === date
           );
           
-          // Only suggest if no existing appointment
+          // Create real appointment if it doesn't exist
           if (!existingAppointment) {
-            suggestedAppointments.push({
-              id: `reminder-${reminder.id}`,
-              type: 'suggested',
-              reminderId: reminder.id,
-              client: reminder.client,
-              stylist: reminder.stylist,
-              service: reminder.service,
-              date: date,
-              startTime: startTime,
-              endTime: this.calculateEndTime(startTime, reminder.service.duration),
-              notes: `Appuntamento suggerito dal promemoria ricorrente ${reminder.frequency}`,
-              isRecurring: true,
-              frequency: reminder.frequency,
-              dayOfWeek: reminder.dayOfWeek,
-              dayOfMonth: reminder.dayOfMonth
-            });
+            await this.createAppointmentFromReminder(reminder.id, date);
           }
         }
       }
 
-      return suggestedAppointments;
+      // Return empty array since we're creating real appointments, not suggested ones
+      return [];
     } catch (error) {
-      console.error("Error getting suggested appointments by date:", error);
+      console.error("Error creating appointments from reminders by date:", error);
       return [];
     }
   }
@@ -870,50 +891,35 @@ export class DatabaseStorage implements IStorage {
     try {
       const allReminders = await this.getAllRecurringReminders();
       const existingAppointments = await this.getAppointmentsByDateRange(startDate, endDate);
-      const suggestedAppointments = [];
-      const uniqueSuggestions = new Set();
+      const processedDates = new Set();
 
       for (const reminder of allReminders) {
         // Calculate ALL possible dates for this reminder in the range
         const possibleDates = this.calculateRecurringDatesInRange(reminder, startDate, endDate);
         
-        for (const suggestedDate of possibleDates) {
-          const startTime = reminder.preferredTime || '09:00';
-          const uniqueKey = `${reminder.clientId}-${suggestedDate}`;
+        for (const appointmentDate of possibleDates) {
+          const uniqueKey = `${reminder.clientId}-${appointmentDate}`;
           
-          // Skip if already processed or if existing appointment exists
-          if (uniqueSuggestions.has(uniqueKey)) continue;
+          // Skip if already processed
+          if (processedDates.has(uniqueKey)) continue;
           
           const existingAppointment = existingAppointments.find(apt => 
             apt.clientId === reminder.clientId && 
-            apt.date === suggestedDate
+            apt.date === appointmentDate
           );
           
+          // Create real appointment if it doesn't exist
           if (!existingAppointment) {
-            uniqueSuggestions.add(uniqueKey);
-            suggestedAppointments.push({
-              id: `reminder-${reminder.id}-${suggestedDate}`,
-              type: 'suggested',
-              reminderId: reminder.id,
-              client: reminder.client,
-              stylist: reminder.stylist,
-              service: reminder.service,
-              date: suggestedDate,
-              startTime: startTime,
-              endTime: this.calculateEndTime(startTime, reminder.service.duration),
-              notes: `Appuntamento suggerito dal promemoria ricorrente ${reminder.frequency}`,
-              isRecurring: true,
-              frequency: reminder.frequency,
-              dayOfWeek: reminder.dayOfWeek,
-              dayOfMonth: reminder.dayOfMonth
-            });
+            await this.createAppointmentFromReminder(reminder.id, appointmentDate);
+            processedDates.add(uniqueKey);
           }
         }
       }
 
-      return suggestedAppointments;
+      // Return empty array since we're creating real appointments, not suggested ones
+      return [];
     } catch (error) {
-      console.error("Error getting suggested appointments by date range:", error);
+      console.error("Error creating appointments from reminders by date range:", error);
       return [];
     }
   }

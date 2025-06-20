@@ -348,31 +348,31 @@ export default function Clients() {
                         </div>
                       </div>
                       <div className="flex items-center space-x-1 sm:space-x-2 flex-shrink-0">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => window.open(`/recurring-reminders?client=${client.id}`, '_blank')}
-                          title="Gestisci promemoria ricorrenti"
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => window.open(`/recurring-reminders?client=${client.id}`, '_blank')}
+                        title="Gestisci promemoria ricorrenti"
                           className="text-blue-600 hover:text-blue-700 h-8 w-8 sm:h-9 sm:w-9"
-                        >
+                      >
                           <Bell className="h-3 w-3 sm:h-4 sm:w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleEdit(client)}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleEdit(client)}
                           className="h-8 w-8 sm:h-9 sm:w-9"
-                        >
+                      >
                           <Edit className="h-3 w-3 sm:h-4 sm:w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDelete(client.id)}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDelete(client.id)}
                           className="text-red-600 hover:text-red-700 h-8 w-8 sm:h-9 sm:w-9"
-                        >
+                      >
                           <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
-                        </Button>
+                      </Button>
                       </div>
                     </div>
 

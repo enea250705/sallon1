@@ -103,6 +103,10 @@ export interface IStorage {
   
   // Migration
   migrateRecurringReminders(): Promise<{message: string, created: boolean}>;
+  
+  // Opening hours management
+  getOpeningHours(): Promise<{ openTime: string; closeTime: string }>;
+  saveOpeningHours(hours: { openTime: string; closeTime: string }): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1100,6 +1104,60 @@ export class DatabaseStorage implements IStorage {
     }
 
     return dates;
+  }
+
+  // Opening hours management
+  async getOpeningHours(): Promise<{ openTime: string; closeTime: string }> {
+    try {
+      const fs = await import('fs');
+      const path = await import('path');
+      const filePath = path.join(process.cwd(), 'data', 'opening-hours.json');
+      
+      // Check if file exists
+      if (!fs.existsSync(filePath)) {
+        // Return default hours if file doesn't exist
+        return { openTime: '09:00', closeTime: '19:00' };
+      }
+      
+      const data = fs.readFileSync(filePath, 'utf8');
+      const hours = JSON.parse(data);
+      
+      // Validate format
+      if (!hours.openTime || !hours.closeTime) {
+        return { openTime: '09:00', closeTime: '19:00' };
+      }
+      
+      return hours;
+    } catch (error) {
+      console.error('Error reading opening hours:', error);
+      return { openTime: '09:00', closeTime: '19:00' };
+    }
+  }
+
+  async saveOpeningHours(hours: { openTime: string; closeTime: string }): Promise<boolean> {
+    try {
+      const fs = await import('fs');
+      const path = await import('path');
+      const dataDir = path.join(process.cwd(), 'data');
+      const filePath = path.join(dataDir, 'opening-hours.json');
+      
+      // Create data directory if it doesn't exist
+      if (!fs.existsSync(dataDir)) {
+        fs.mkdirSync(dataDir, { recursive: true });
+      }
+      
+      // Validate time format
+      const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
+      if (!timeRegex.test(hours.openTime) || !timeRegex.test(hours.closeTime)) {
+        throw new Error('Invalid time format');
+      }
+      
+      fs.writeFileSync(filePath, JSON.stringify(hours, null, 2));
+      return true;
+    } catch (error) {
+      console.error('Error saving opening hours:', error);
+      return false;
+    }
   }
 }
 

@@ -883,6 +883,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Opening hours settings
+  app.get("/api/settings/hours", isAuthenticated, async (req, res) => {
+    try {
+      const hours = await storage.getOpeningHours();
+      res.json(hours);
+    } catch (error) {
+      console.error("Error fetching opening hours:", error);
+      res.status(500).json({ message: "Failed to fetch opening hours" });
+    }
+  });
+
+  app.post("/api/settings/hours", isAuthenticated, async (req, res) => {
+    try {
+      const { openTime, closeTime } = req.body;
+      
+      if (!openTime || !closeTime) {
+        return res.status(400).json({ message: "Opening and closing times are required" });
+      }
+      
+      // Validate time format
+      const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
+      if (!timeRegex.test(openTime) || !timeRegex.test(closeTime)) {
+        return res.status(400).json({ message: "Invalid time format. Use HH:MM format" });
+      }
+      
+      const success = await storage.saveOpeningHours({ openTime, closeTime });
+      
+      if (success) {
+        res.json({ 
+          message: "Opening hours saved successfully",
+          openTime,
+          closeTime
+        });
+      } else {
+        res.status(500).json({ message: "Failed to save opening hours" });
+      }
+    } catch (error) {
+      console.error("Error saving opening hours:", error);
+      res.status(500).json({ message: "Failed to save opening hours" });
+    }
+  });
+
   // Health check endpoint for Docker
   app.get("/api/health", (req, res) => {
     res.status(200).json({ 

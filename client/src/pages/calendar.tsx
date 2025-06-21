@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Layout } from "@/components/layout/layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -152,19 +152,48 @@ export default function Calendar() {
     queryKey: ["/api/services"],
   });
 
+  // Track the last service ID to prevent duration reset on re-renders
+  const [lastServiceId, setLastServiceId] = useState<number | null>(null);
+
   // Auto-update duration when service changes (unless manually overridden)
   useEffect(() => {
-    if (selectedServiceId && services && !manualDurationOverride) {
+    if (selectedServiceId && services && selectedServiceId !== lastServiceId) {
       const selectedService = services.find(s => s.id === selectedServiceId);
       if (selectedService && selectedService.duration) {
         setMainServiceDuration(`${selectedService.duration}m`);
+        setManualDurationOverride(false);
+        setLastServiceId(selectedServiceId);
       }
     }
-  }, [selectedServiceId, services, manualDurationOverride]);
+  }, [selectedServiceId, services, lastServiceId]);
 
   const { data: clients } = useQuery<any[]>({
     queryKey: ["/api/clients"],
   });
+
+  // Fetch opening hours for calendar time slots
+  const { data: openingHours, refetch: refetchHours } = useQuery({
+    queryKey: ["/api/settings/hours"],
+    queryFn: async () => {
+      try {
+        const response = await fetch("/api/settings/hours");
+        if (response.ok) {
+          return response.json();
+        }
+        return { openTime: "08:00", closeTime: "20:00" };
+      } catch (error) {
+        return { openTime: "08:00", closeTime: "20:00" };
+      }
+    },
+    staleTime: 0, // Always fetch fresh data
+    refetchOnWindowFocus: true, // Refetch when window gets focus
+    refetchInterval: 5000, // Refetch every 5 seconds
+  });
+
+  // Force refresh hours when user navigates to calendar
+  useEffect(() => {
+    refetchHours();
+  }, [viewMode, refetchHours]);
 
   const createAppointmentMutation = useMutation({
     mutationFn: async (data: AppointmentForm) => {
@@ -194,7 +223,7 @@ export default function Calendar() {
       const startTimeMinutes = data.startHour * 60 + data.startMinute;
       
       // Get duration from manual override or service default
-      const durationMinutes = parseInt(mainServiceDuration.replace('m', ''));
+      const durationMinutes = parseInt((mainServiceDuration || '30m').replace('m', '')) || 30;
       
       const endTimeMinutes = startTimeMinutes + durationMinutes;
       const endHours = Math.floor(endTimeMinutes / 60);
@@ -333,7 +362,7 @@ export default function Calendar() {
     const startTimeMinutes = data.startHour * 60 + data.startMinute;
     
     // Get duration from manual override or service
-    const durationMinutes = parseInt(mainServiceDuration.replace('m', ''));
+    const durationMinutes = parseInt((mainServiceDuration || '30m').replace('m', '')) || 30;
     
     const endTimeMinutes = startTimeMinutes + durationMinutes;
     const endHours = Math.floor(endTimeMinutes / 60);
@@ -557,12 +586,40 @@ export default function Calendar() {
   // Filter appointments for the selected date
   const dayAppointments = allAppointments?.filter(app => app.date === format(selectedDate, "yyyy-MM-dd")) || [];
 
-  // Generate time slots for professional day view (08:00 - 20:00, 30min intervals)
-  const timeSlots = Array.from({ length: 24 }, (_, i) => {
-    const hour = 8 + Math.floor(i / 2);
-    const minute = (i % 2) * 30;
-    return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-  });
+  // Force re-render when opening hours change
+  const [forceUpdate, setForceUpdate] = useState(0);
+  
+  useEffect(() => {
+    if (openingHours) {
+      console.log('🕒 Opening hours changed:', openingHours);
+      setForceUpdate(prev => prev + 1);
+    }
+  }, [openingHours]);
+
+  // Generate time slots based on opening hours (30min intervals)
+  const timeSlots = React.useMemo(() => {
+    // Use default hours if openingHours is not loaded yet
+    const defaultOpenTime = "08:00";
+    const defaultCloseTime = "20:00";
+    
+    const openTime = openingHours?.openTime || defaultOpenTime;
+    const closeTime = openingHours?.closeTime || defaultCloseTime;
+    
+    const [openHour, openMinute] = openTime.split(':').map(Number);
+    const [closeHour, closeMinute] = closeTime.split(':').map(Number);
+    
+    const openTimeMinutes = openHour * 60 + openMinute;
+    const closeTimeMinutes = closeHour * 60 + closeMinute;
+    
+    const slots = [];
+    for (let minutes = openTimeMinutes; minutes < closeTimeMinutes; minutes += 30) {
+      const hour = Math.floor(minutes / 60);
+      const minute = minutes % 60;
+      slots.push(`${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`);
+    }
+    
+    return slots;
+  }, [openingHours, forceUpdate]);
 
   // Filter stylists based on selection
   const filteredStylists = selectedStylistFilter === 'all' 
@@ -578,8 +635,15 @@ export default function Calendar() {
     if (isNaN(hours) || isNaN(minutes)) {
       return 0;
     }
-    const totalMinutes = (hours - 8) * 60 + minutes;
-    return totalMinutes / 30; // Each slot is 30 minutes
+    
+    // Use default or actual opening time
+    const openTime = openingHours?.openTime || "08:00";
+    const [openHour, openMinute] = openTime.split(':').map(Number);
+    const openTimeMinutes = openHour * 60 + openMinute;
+    const timeMinutes = hours * 60 + minutes;
+    
+    const relativeMinutes = timeMinutes - openTimeMinutes;
+    return Math.max(0, relativeMinutes / 30); // Each slot is 30 minutes
   };
 
   // Helper function to get appointment height - always 1 slot (30 minutes)
@@ -615,6 +679,7 @@ export default function Calendar() {
     const appointmentDuration = appointment.service?.duration || 30;
     setMainServiceDuration(`${appointmentDuration}m`);
     setManualDurationOverride(false);
+    setLastServiceId(appointment.serviceId);
     
     // Reset other states
     setAdditionalServices([]);
@@ -697,6 +762,7 @@ export default function Calendar() {
     setMainServiceDuration("30m");
     setCleaningTime("0m");
     setManualDurationOverride(false);
+    setLastServiceId(null);
     setEditingAppointment(null);
     setIsDialogOpen(true);
   };
@@ -1074,6 +1140,7 @@ export default function Calendar() {
                               <select 
                                 value={mainServiceDuration}
                                 onChange={(e) => {
+
                                   setMainServiceDuration(e.target.value);
                                   setManualDurationOverride(true);
                                 }}
@@ -1115,6 +1182,7 @@ export default function Calendar() {
                                   if (selectedService && selectedService.duration) {
                                     setMainServiceDuration(`${selectedService.duration}m`);
                                     setManualDurationOverride(false);
+                                    setLastServiceId(selectedService.id);
                                   }
                                 }}
                                 className="p-2 text-blue-500 hover:bg-blue-50 rounded-md transition-colors"

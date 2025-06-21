@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Layout } from "@/components/layout/layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,6 +17,11 @@ import { apiRequest } from "@/lib/queryClient";
 const templateSchema = z.object({
   name: z.string().min(1, "Nome è richiesto"),
   template: z.string().min(1, "Template è richiesto"),
+});
+
+const hoursSchema = z.object({
+  openTime: z.string().min(1, "Orario di apertura è richiesto"),
+  closeTime: z.string().min(1, "Orario di chiusura è richiesto"),
 });
 
 type MessageTemplate = {
@@ -41,9 +46,41 @@ export default function Settings() {
     },
   });
 
+  const hoursForm = useForm<z.infer<typeof hoursSchema>>({
+    resolver: zodResolver(hoursSchema),
+    defaultValues: {
+      openTime: "09:00",
+      closeTime: "19:00",
+    },
+  });
+
   const { data: templates, isLoading } = useQuery<MessageTemplate[]>({
     queryKey: ["/api/message-templates"],
   });
+
+  // Fetch opening hours
+  const { data: openingHours } = useQuery({
+    queryKey: ["/api/settings/hours"],
+    queryFn: async () => {
+      try {
+        return await apiRequest("GET", "/api/settings/hours");
+      } catch (error) {
+        console.error("Error fetching opening hours:", error);
+        // Return default hours on error
+        return { openTime: "09:00", closeTime: "19:00" };
+      }
+    },
+  });
+
+  // Update form when data loads
+  useEffect(() => {
+    if (openingHours) {
+      hoursForm.reset({
+        openTime: openingHours.openTime || "09:00",
+        closeTime: openingHours.closeTime || "19:00",
+      });
+    }
+  }, [openingHours, hoursForm]);
 
   const createTemplateMutation = useMutation({
     mutationFn: (data: z.infer<typeof templateSchema>) => 
@@ -92,6 +129,23 @@ export default function Settings() {
       toast({ 
         title: "Errore", 
         description: "Impossibile eliminare il template",
+        variant: "destructive" 
+      });
+    },
+  });
+
+  const saveHoursMutation = useMutation({
+    mutationFn: (data: z.infer<typeof hoursSchema>) => 
+      apiRequest("POST", "/api/settings/hours", data),
+    onSuccess: () => {
+      // Invalidate both settings and calendar queries to update everywhere
+      queryClient.invalidateQueries({ queryKey: ["/api/settings/hours"] });
+      toast({ title: "Orari salvati con successo - Il calendario si aggiornerà automaticamente" });
+    },
+    onError: () => {
+      toast({ 
+        title: "Errore", 
+        description: "Impossibile salvare gli orari",
         variant: "destructive" 
       });
     },
@@ -304,25 +358,45 @@ export default function Settings() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm font-medium text-gray-700">Apertura</label>
-                    <Input type="time" defaultValue="09:00" className="mt-1" />
+              <Form {...hoursForm}>
+                <form onSubmit={hoursForm.handleSubmit((data) => saveHoursMutation.mutate(data))} className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={hoursForm.control}
+                      name="openTime"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Apertura</FormLabel>
+                          <FormControl>
+                            <Input type="time" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={hoursForm.control}
+                      name="closeTime"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Chiusura</FormLabel>
+                          <FormControl>
+                            <Input type="time" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                   </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700">Chiusura</label>
-                    <Input type="time" defaultValue="19:00" className="mt-1" />
-                  </div>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-700">Giorni di Chiusura</label>
-                  <Input placeholder="Domenica, Lunedì" className="mt-1" />
-                </div>
-                <Button className="w-full bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700">
-                  Salva Orari
-                </Button>
-              </div>
+                  <Button 
+                    type="submit" 
+                    className="w-full bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700"
+                    disabled={saveHoursMutation.isPending}
+                  >
+                    {saveHoursMutation.isPending ? "Salvando..." : "Salva Orari"}
+                  </Button>
+                </form>
+              </Form>
             </CardContent>
           </Card>
         </div>

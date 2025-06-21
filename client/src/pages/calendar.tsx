@@ -646,9 +646,34 @@ export default function Calendar() {
     return Math.max(0, relativeMinutes / 30); // Each slot is 30 minutes
   };
 
-  // Helper function to get appointment height - always 1 slot (30 minutes)
+  // Helper function to get appointment height based on duration
   const getAppointmentHeight = (startTime: string, endTime: string) => {
-    return 1; // Always occupy only one time slot (30 minutes)
+    const [startHours, startMinutes] = startTime.split(':').map(Number);
+    const [endHours, endMinutes] = endTime.split(':').map(Number);
+    
+    const startTotalMinutes = startHours * 60 + startMinutes;
+    const endTotalMinutes = endHours * 60 + endMinutes;
+    
+    const durationMinutes = endTotalMinutes - startTotalMinutes;
+    
+    // Each time slot is 30 minutes, so calculate how many slots the appointment spans
+    return Math.max(1, Math.ceil(durationMinutes / 30));
+  };
+
+  // Helper function to check if a time slot is occupied by any appointment (starting or extending)
+  const isTimeSlotOccupied = (stylistId: number, timeIndex: number, appointments: any[]) => {
+    return appointments.some(apt => {
+      if (!apt.stylistId || !apt.startTime || !apt.endTime || apt.stylistId !== stylistId) {
+        return false;
+      }
+      
+      const startPosition = timeToPosition(apt.startTime);
+      const height = getAppointmentHeight(apt.startTime, apt.endTime);
+      const endPosition = startPosition + height - 1;
+      
+      // Check if the current timeIndex falls within this appointment's range
+      return timeIndex >= startPosition && timeIndex <= endPosition;
+    });
   };
 
   // Function to handle appointment click
@@ -1602,7 +1627,7 @@ export default function Calendar() {
                                 timeToPosition(apt.startTime) === timeIndex;
                             });
                             
-                            const isOccupied = appointmentAtStart !== undefined;
+                            const isOccupied = appointmentAtStart !== undefined || isTimeSlotOccupied(stylist.id, timeIndex, dayAppointments);
                             
                             return (
                               <div key={time} className="flex">
@@ -1680,8 +1705,8 @@ export default function Calendar() {
                               timeToPosition(apt.startTime) === timeIndex;
                           });
                           
-                          // Check if this cell is occupied by an appointment starting here
-                          const isOccupied = appointmentAtStart !== undefined;
+                          // Check if this cell is occupied by an appointment starting here or extending from previous slots
+                          const isOccupied = appointmentAtStart !== undefined || isTimeSlotOccupied(stylist.id, timeIndex, dayAppointments);
                           
                           return (
                             <div

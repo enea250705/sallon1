@@ -32,7 +32,7 @@ export function DraggableDailyAppointment({
 
   const combinedStyle = {
     ...style,
-    height: `56px`, // Fixed height for single time slot (60px - 4px padding)
+    height: `${height * 60 - 4}px`, // Dynamic height: each slot is 60px, minus 4px padding
   };
 
   return (

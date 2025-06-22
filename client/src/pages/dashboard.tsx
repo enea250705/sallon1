@@ -18,7 +18,15 @@ export default function Dashboard() {
   });
 
   const { data: todayAppointments, isLoading: appointmentsLoading } = useQuery({
-    queryKey: ["/api/appointments", { date: new Date().toISOString().split('T')[0] }],
+    queryKey: ["/api/appointments", "today", new Date().toISOString().split('T')[0]],
+    queryFn: async () => {
+      const today = new Date().toISOString().split('T')[0];
+      const response = await fetch(`/api/appointments?date=${today}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return response.json();
+    },
   });
 
   return (
@@ -119,7 +127,13 @@ export default function Dashboard() {
                           {appointment.startTime.slice(0, 5)}
                         </div>
                         <div className="text-sm text-gray-500">
-                          {appointment.service.duration}min
+                          {(() => {
+                            // Calculate actual duration from appointment times
+                            const [startHours, startMinutes] = appointment.startTime.split(':').map(Number);
+                            const [endHours, endMinutes] = appointment.endTime.split(':').map(Number);
+                            const actualDuration = (endHours * 60 + endMinutes) - (startHours * 60 + startMinutes);
+                            return actualDuration;
+                          })()}min
                         </div>
                       </div>
                     </div>

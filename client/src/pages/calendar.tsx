@@ -411,9 +411,17 @@ export default function Calendar() {
     setClipboardAppointment(appointment);
     setIsCutMode(true);
     setIsAppointmentDetailOpen(false);
+    
+    // Check if duration was modified for feedback
+    const [startHours, startMinutes] = appointment.startTime.split(':').map(Number);
+    const [endHours, endMinutes] = appointment.endTime.split(':').map(Number);
+    const actualDuration = (endHours * 60 + endMinutes) - (startHours * 60 + startMinutes);
+    const serviceDuration = appointment.service?.duration || 30;
+    const isDurationModified = actualDuration !== serviceDuration;
+    
     toast({
       title: "Appuntamento tagliato",
-      description: `${appointment.client.firstName} ${appointment.client.lastName} - Vai su un altro giorno e clicca "Incolla"`,
+      description: `${appointment.client.firstName} ${appointment.client.lastName} - Vai su un altro giorno e clicca "Incolla"${isDurationModified ? ' (durata personalizzata)' : ''}`,
     });
   };
 
@@ -430,8 +438,13 @@ export default function Calendar() {
     // If specific time is provided, use it; otherwise keep original time
     if (targetTime) {
       const [hours, minutes] = targetTime.split(':').map(Number);
-      const duration = clipboardAppointment.service?.duration || 30;
-      const endMinutes = minutes + duration;
+      
+      // Calculate actual duration from the original appointment (maintains manual duration changes)
+      const [originalStartHours, originalStartMinutes] = clipboardAppointment.startTime.split(':').map(Number);
+      const [originalEndHours, originalEndMinutes] = clipboardAppointment.endTime.split(':').map(Number);
+      const actualDuration = (originalEndHours * 60 + originalEndMinutes) - (originalStartHours * 60 + originalStartMinutes);
+      
+      const endMinutes = minutes + actualDuration;
       const endHours = hours + Math.floor(endMinutes / 60);
       const finalMinutes = endMinutes % 60;
       
@@ -452,9 +465,16 @@ export default function Calendar() {
     setClipboardAppointment(null);
     setIsCutMode(false);
     
+    // Check if duration was modified for feedback
+    const [originalStartHours, originalStartMinutes] = clipboardAppointment.startTime.split(':').map(Number);
+    const [originalEndHours, originalEndMinutes] = clipboardAppointment.endTime.split(':').map(Number);
+    const actualDuration = (originalEndHours * 60 + originalEndMinutes) - (originalStartHours * 60 + originalStartMinutes);
+    const serviceDuration = clipboardAppointment.service?.duration || 30;
+    const isDurationModified = actualDuration !== serviceDuration;
+
     toast({
       title: "Appuntamento incollato",
-      description: `${clipboardAppointment.client.firstName} ${clipboardAppointment.client.lastName} spostato con successo`,
+      description: `${clipboardAppointment.client.firstName} ${clipboardAppointment.client.lastName} spostato con successo${isDurationModified ? ' (durata personalizzata mantenuta)' : ''}`,
     });
   };
 
@@ -527,12 +547,13 @@ export default function Calendar() {
       return;
     }
 
-    // Update the appointment with the new date
+    // Update the appointment with the new date (maintaining original endTime)
     updateAppointmentMutation.mutate({
       id: appointmentId,
       data: {
         date: newDate,
         startTime: draggedAppointment.startTime,
+        endTime: draggedAppointment.endTime,
         clientId: draggedAppointment.clientId,
         serviceId: draggedAppointment.serviceId,
         stylistId: draggedAppointment.stylistId,
@@ -551,13 +572,17 @@ export default function Calendar() {
         return;
       }
 
-      // Calculate end time based on service duration
-      const [hours, minutes] = newTime.split(':').map(Number);
-      const duration = draggedAppointment.service?.duration || 30;
-      const endMinutes = minutes + duration;
-      const endHours = hours + Math.floor(endMinutes / 60);
-      const finalMinutes = endMinutes % 60;
-      const endTime = `${endHours.toString().padStart(2, '0')}:${finalMinutes.toString().padStart(2, '0')}`;
+      // Calculate duration from the actual appointment (maintains manual duration changes)
+      const [startHours, startMinutes] = draggedAppointment.startTime.split(':').map(Number);
+      const [endHours, endMinutes] = draggedAppointment.endTime.split(':').map(Number);
+      const currentDuration = (endHours * 60 + endMinutes) - (startHours * 60 + startMinutes);
+      
+      // Calculate new end time maintaining the same duration
+      const [newHours, newMinutes] = newTime.split(':').map(Number);
+      const newEndMinutes = newMinutes + currentDuration;
+      const newEndHours = newHours + Math.floor(newEndMinutes / 60);
+      const finalNewEndMinutes = newEndMinutes % 60;
+      const endTime = `${newEndHours.toString().padStart(2, '0')}:${finalNewEndMinutes.toString().padStart(2, '0')}`;
 
       // Update the appointment with the new time and stylist
       updateAppointmentMutation.mutate({
@@ -676,8 +701,13 @@ export default function Calendar() {
     });
   };
 
-  // Function to handle appointment click
+  // Function to handle appointment click - opens edit directly
   const handleAppointmentClick = (appointment: any) => {
+    handleEditAppointment(appointment);
+  };
+
+  // Function to handle appointment details (for viewing details)
+  const handleAppointmentDetails = (appointment: any) => {
     setSelectedAppointment(appointment);
     setIsAppointmentDetailOpen(true);
   };
@@ -857,6 +887,16 @@ export default function Calendar() {
                     </span>
                   </div>
                   <div className="flex items-center space-x-2">
+                    {editingAppointment && (
+                      <button 
+                        type="button"
+                        onClick={() => cutAppointment(editingAppointment)}
+                        className="h-10 w-10 rounded-full bg-orange-500 hover:bg-orange-600 flex items-center justify-center"
+                        title="Taglia appuntamento"
+                      >
+                        <Scissors className="h-4 w-4 text-white" />
+                      </button>
+                    )}
                     <button 
                       type="submit" 
                       form="appointment-form"
@@ -1643,12 +1683,13 @@ export default function Calendar() {
                                   onEmptyClick={() => handleEmptyCellClick(stylist.id, time)}
                                   hasPendingPaste={!!clipboardAppointment}
                                 >
-                                  <div className="flex-1 min-h-[60px] relative">
+                                  <div className="flex-1 min-h-[60px] relative overflow-hidden">
                                   {appointmentAtStart && (
                                       <DraggableDailyAppointment
                                         appointment={appointmentAtStart}
                                         height={getAppointmentHeight(appointmentAtStart.startTime, appointmentAtStart.endTime)}
                                         onAppointmentClick={handleAppointmentClick}
+                                        isCut={clipboardAppointment?.id === appointmentAtStart.id}
                                       />
                                         )}
                                       </div>
@@ -1720,12 +1761,13 @@ export default function Calendar() {
                                 onEmptyClick={() => handleEmptyCellClick(stylist.id, time)}
                                 hasPendingPaste={!!clipboardAppointment}
                               >
-                                <div className="absolute inset-0">
+                                <div className="absolute inset-0 overflow-hidden">
                                   {appointmentAtStart && (
                                     <DraggableDailyAppointment
                                       appointment={appointmentAtStart}
                                       height={getAppointmentHeight(appointmentAtStart.startTime, appointmentAtStart.endTime)}
                                       onAppointmentClick={handleAppointmentClick}
+                                      isCut={clipboardAppointment?.id === appointmentAtStart.id}
                                     />
                                   )}
                                 </div>
@@ -1761,16 +1803,7 @@ export default function Calendar() {
                   >
                     Modifica
                   </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="h-8 px-3 sm:h-10 sm:px-4 text-xs sm:text-sm text-orange-600 border-orange-200 hover:bg-orange-50"
-                    onClick={() => selectedAppointment && cutAppointment(selectedAppointment)}
-                    title="Taglia appuntamento per spostarlo"
-                  >
-                    <Scissors className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
-                    Taglia
-                  </Button>
+
                   <Button 
                     variant="ghost" 
                     size="sm" 

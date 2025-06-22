@@ -1,17 +1,19 @@
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical } from 'lucide-react';
+import { GripVertical, Scissors } from 'lucide-react';
 
 interface DraggableDailyAppointmentProps {
   appointment: any;
   height: number;
   onAppointmentClick: (appointment: any) => void;
+  isCut?: boolean;
 }
 
 export function DraggableDailyAppointment({ 
   appointment, 
   height, 
-  onAppointmentClick 
+  onAppointmentClick,
+  isCut = false
 }: DraggableDailyAppointmentProps) {
   const {
     attributes,
@@ -26,6 +28,17 @@ export function DraggableDailyAppointment({
     },
   });
 
+  // Touch support for mobile devices
+  const touchListeners = {
+    ...listeners,
+    onTouchStart: (e: React.TouchEvent) => {
+      // Allow drag on touch devices
+      if (listeners?.onTouchStart) {
+        listeners.onTouchStart(e as any);
+      }
+    },
+  };
+
   const style = {
     transform: CSS.Translate.toString(transform),
   };
@@ -35,31 +48,44 @@ export function DraggableDailyAppointment({
     height: `${height * 60 - 4}px`, // Dynamic height: each slot is 60px, minus 4px padding
   };
 
+  // Calculate if duration was modified
+  const [startHours, startMinutes] = appointment.startTime.split(':').map(Number);
+  const [endHours, endMinutes] = appointment.endTime.split(':').map(Number);
+  const actualDuration = (endHours * 60 + endMinutes) - (startHours * 60 + startMinutes);
+  const serviceDuration = appointment.service?.duration || 30;
+  const isDurationModified = actualDuration !== serviceDuration;
+
   return (
     <div
       ref={setNodeRef}
       style={combinedStyle}
       {...attributes}
-      className={`relative w-full text-white text-sm rounded-lg shadow-lg transition-all duration-200 mx-2 ${
+      title={`${appointment.client.firstName} ${appointment.client.lastName} - ${appointment.service.name}${isDurationModified ? ' (Durata personalizzata: ' + actualDuration + 'min)' : ''}`}
+      className={`relative w-full text-white text-sm rounded-lg shadow-lg transition-all duration-200 m-1 flex ${
         isDragging ? 'opacity-50 z-50' : 'z-10'
+      } ${
+        isCut ? 'opacity-60 border-2 border-dashed border-yellow-400' : ''
       } ${
         appointment.type === 'suggested' 
           ? 'bg-gradient-to-r from-orange-400 to-orange-500 border-l-4 border-orange-600 hover:from-orange-500 hover:to-orange-600' 
           : 'bg-gradient-to-r from-blue-500 to-blue-600 border-l-4 border-blue-700 hover:from-blue-600 hover:to-blue-700'
       }`}
     >
-      {/* Drag Handle Area - Left Side */}
+      {/* Large Drag Handle Area - Left Third */}
       <div
-        {...listeners}
-        className="absolute left-0 top-0 bottom-0 w-6 cursor-grab active:cursor-grabbing hover:bg-white hover:bg-opacity-10 transition-colors flex items-center justify-center"
-        title="Trascina per spostare"
+        {...touchListeners}
+        className="w-1/3 cursor-grab active:cursor-grabbing hover:bg-white hover:bg-opacity-30 transition-all duration-200 flex flex-col items-center justify-center group rounded-l-lg touch-manipulation border-r border-white border-opacity-20"
+        title="Trascina per spostare l'appuntamento"
       >
-        <GripVertical className="h-4 w-4 opacity-80" />
+        <GripVertical className="h-6 w-6 opacity-80 group-hover:opacity-100 transition-opacity mb-1" />
+        <div className="text-xs opacity-60 group-hover:opacity-100 transition-opacity font-medium">
+          DRAG
+        </div>
       </div>
       
-      {/* Clickable Content Area */}
+      {/* Clickable Content Area - Right Side */}
       <div
-        className="ml-6 p-3 cursor-pointer hover:scale-105 transform transition-transform"
+        className="flex-1 p-2 cursor-pointer hover:bg-white hover:bg-opacity-10 transition-colors relative"
         onClick={(e) => {
           e.stopPropagation();
           onAppointmentClick(appointment);
@@ -68,6 +94,11 @@ export function DraggableDailyAppointment({
         {appointment.type === 'suggested' && (
           <div className="absolute top-1 right-1 bg-white bg-opacity-20 rounded-full px-1 py-0.5">
             <span className="text-xs font-bold">💡</span>
+          </div>
+        )}
+        {isCut && (
+          <div className="absolute top-1 right-1 bg-yellow-400 bg-opacity-90 rounded-full p-1">
+            <Scissors className="h-3 w-3 text-yellow-800" />
           </div>
         )}
         <div className="font-bold truncate text-sm leading-tight mb-1">
@@ -81,7 +112,23 @@ export function DraggableDailyAppointment({
         </div>
         {height > 1 && (
           <div className="text-xs opacity-80 leading-tight font-medium">
-            {Math.round(appointment.service.duration / 60 * 100) / 100}h
+            {(() => {
+              // Calculate actual duration from appointment times
+              const [startHours, startMinutes] = appointment.startTime.split(':').map(Number);
+              const [endHours, endMinutes] = appointment.endTime.split(':').map(Number);
+              const actualDuration = (endHours * 60 + endMinutes) - (startHours * 60 + startMinutes);
+              const serviceDuration = appointment.service?.duration || 30;
+              
+              // Show if duration was manually modified
+              const isModified = actualDuration !== serviceDuration;
+              
+              return (
+                <span className={isModified ? "font-bold text-yellow-200" : ""}>
+                  {actualDuration}min
+                  {isModified && " ⚡"}
+                </span>
+              );
+            })()}
           </div>
         )}
         {height > 2 && (

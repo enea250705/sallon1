@@ -21,6 +21,7 @@ export function DraggableAppointment({ appointment, isMonthView = false, onDelet
     data: {
       appointment,
     },
+    disabled: isMonthView, // Disable drag in month view
   });
 
   const style = {
@@ -30,14 +31,9 @@ export function DraggableAppointment({ appointment, isMonthView = false, onDelet
   if (isMonthView) {
     return (
       <div
-        ref={setNodeRef}
-        style={style}
-        {...listeners}
-        {...attributes}
         className={`
-          text-xs px-1 py-0.5 bg-gradient-to-r from-pink-100 to-purple-100 text-pink-700 rounded truncate cursor-grab
-          ${isDragging ? 'opacity-50' : ''}
-          active:cursor-grabbing hover:from-pink-200 hover:to-purple-200 transition-colors
+          text-xs px-1 py-0.5 bg-gradient-to-r from-pink-100 to-purple-100 text-pink-700 rounded truncate cursor-pointer
+          hover:from-pink-200 hover:to-purple-200 transition-colors
         `}
         title={`${appointment.startTime.slice(0, 5)} - ${appointment.client.firstName} ${appointment.client.lastName} - ${appointment.service.name}`}
       >

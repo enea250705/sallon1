@@ -1683,7 +1683,7 @@ export default function Calendar() {
                                   onEmptyClick={() => handleEmptyCellClick(stylist.id, time)}
                                   hasPendingPaste={!!clipboardAppointment}
                                 >
-                                  <div className="flex-1 min-h-[60px] relative overflow-hidden">
+                                  <div className="flex-1 min-h-[60px] relative overflow-visible">
                                   {appointmentAtStart && (
                                       <DraggableDailyAppointment
                                         appointment={appointmentAtStart}
@@ -1724,12 +1724,7 @@ export default function Calendar() {
                         {/* Time label */}
                         <div className="p-3 bg-gradient-to-r from-gray-50 to-gray-100 border-r border-gray-300 text-sm font-medium text-gray-700 flex items-center justify-center">
                           <div className="text-center">
-                            <div className="font-bold">{time}</div>
-                            {timeIndex % 2 === 0 && (
-                              <div className="text-xs text-gray-500 mt-1">
-                                {Math.floor(timeIndex / 2) + 8}:00
-                              </div>
-                            )}
+                            <div className="font-bold text-base">{time}</div>
                           </div>
                         </div>
                         
@@ -1761,7 +1756,7 @@ export default function Calendar() {
                                 onEmptyClick={() => handleEmptyCellClick(stylist.id, time)}
                                 hasPendingPaste={!!clipboardAppointment}
                               >
-                                <div className="absolute inset-0 overflow-hidden">
+                                <div className="absolute inset-0 overflow-visible">
                                   {appointmentAtStart && (
                                     <DraggableDailyAppointment
                                       appointment={appointmentAtStart}

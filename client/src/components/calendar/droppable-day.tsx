@@ -15,6 +15,7 @@ export function DroppableDay({ day, selectedDate, appointments, onDayClick }: Dr
     data: {
       date: format(day, 'yyyy-MM-dd'),
     },
+    disabled: true, // Disable drop in month view
   });
 
   const isCurrentMonth = isSameMonth(day, selectedDate);
@@ -23,14 +24,12 @@ export function DroppableDay({ day, selectedDate, appointments, onDayClick }: Dr
 
   return (
     <div
-      ref={setNodeRef}
       onClick={() => onDayClick(day)}
       className={`
         min-h-[80px] p-2 border rounded-lg cursor-pointer transition-colors
         ${isCurrentMonth ? 'bg-white hover:bg-gray-50' : 'bg-gray-50 text-gray-400'}
         ${isSelected ? 'ring-2 ring-pink-500' : ''}
         ${isCurrentDay ? 'bg-pink-50 border-pink-200' : 'border-gray-200'}
-        ${isOver && isCurrentMonth ? 'bg-green-50 border-green-300' : ''}
       `}
     >
       <div className={`text-sm font-medium mb-1 ${

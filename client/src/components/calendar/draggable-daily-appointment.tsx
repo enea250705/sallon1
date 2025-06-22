@@ -45,7 +45,7 @@ export function DraggableDailyAppointment({
 
   const combinedStyle = {
     ...style,
-    height: `${height * 60 - 4}px`, // Dynamic height: each slot is 60px, minus 4px padding
+    height: `${height * 60 - 8}px`, // Dynamic height: each slot is 60px, minus 8px for spacing
   };
 
   // Calculate if duration was modified
@@ -61,7 +61,7 @@ export function DraggableDailyAppointment({
       style={combinedStyle}
       {...attributes}
       title={`${appointment.client.firstName} ${appointment.client.lastName} - ${appointment.service.name}${isDurationModified ? ' (Durata personalizzata: ' + actualDuration + 'min)' : ''}`}
-      className={`relative w-full text-white text-sm rounded-lg shadow-lg transition-all duration-200 m-1 flex ${
+      className={`relative w-full text-white text-sm rounded-lg shadow-lg transition-all duration-200 my-1 flex ${
         isDragging ? 'opacity-50 z-50' : 'z-10'
       } ${
         isCut ? 'opacity-60 border-2 border-dashed border-yellow-400' : ''

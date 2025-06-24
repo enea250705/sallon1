@@ -411,15 +411,15 @@ export default function Settings() {
               <div className="space-y-4">
                 <div>
                   <label className="text-sm font-medium text-gray-700">Nome Salone</label>
-                  <Input defaultValue="Salone di Bellezza" className="mt-1" />
+                  <Input placeholder="Inserisci nome salone" className="mt-1" />
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-700">Indirizzo</label>
-                  <Input placeholder="Via Roma 123, Milano" className="mt-1" />
+                  <Input placeholder="Inserisci indirizzo" className="mt-1" />
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-700">Telefono</label>
-                  <Input placeholder="+39 02 1234567" className="mt-1" />
+                  <Input placeholder="Inserisci numero di telefono" className="mt-1" />
                 </div>
                 <Button className="w-full bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700">
                   Salva Impostazioni

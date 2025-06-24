@@ -1712,8 +1712,8 @@ export default function Calendar() {
                   </div>
                 ) : (
                   <div>
-                    {/* Mobile Day View */}
-                    <div className="block sm:hidden">
+                {/* Mobile Day View */}
+                <div className="block sm:hidden">
                   <div className="space-y-4 p-4">
                     {filteredStylists.map((stylist: any) => (
                       <div key={stylist.id} className="bg-white rounded-lg border border-gray-200 overflow-hidden">

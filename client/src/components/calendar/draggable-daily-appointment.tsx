@@ -45,7 +45,7 @@ export function DraggableDailyAppointment({
 
   const combinedStyle = {
     ...style,
-    height: `${height * 60 - 8}px`, // Dynamic height: each slot is 60px, minus 8px for spacing
+    height: `${height * 50 - 4}px`, // Dynamic height: each slot is 50px, minus 4px for spacing
   };
 
   // Calculate if duration was modified
@@ -61,7 +61,7 @@ export function DraggableDailyAppointment({
       style={combinedStyle}
       {...attributes}
       title={`${appointment.client.firstName} ${appointment.client.lastName} - ${appointment.service.name}${isDurationModified ? ' (Durata personalizzata: ' + actualDuration + 'min)' : ''}`}
-      className={`relative w-full text-white text-sm rounded-lg shadow-lg transition-all duration-200 my-1 flex ${
+      className={`relative w-full text-white text-sm rounded-lg shadow-lg transition-all duration-200 ${height === 1 ? 'my-0.5' : 'my-1'} flex ${
         isDragging ? 'opacity-50 z-50' : 'z-10'
       } ${
         isCut ? 'opacity-60 border-2 border-dashed border-yellow-400' : ''
@@ -77,15 +77,17 @@ export function DraggableDailyAppointment({
         className="w-1/3 cursor-grab active:cursor-grabbing hover:bg-white hover:bg-opacity-30 transition-all duration-200 flex flex-col items-center justify-center group rounded-l-lg touch-manipulation border-r border-white border-opacity-20"
         title="Trascina per spostare l'appuntamento"
       >
-        <GripVertical className="h-6 w-6 opacity-80 group-hover:opacity-100 transition-opacity mb-1" />
+        <GripVertical className={`${height === 1 ? 'h-4 w-4' : 'h-6 w-6'} opacity-80 group-hover:opacity-100 transition-opacity ${height === 1 ? '' : 'mb-1'}`} />
+        {height > 1 && (
         <div className="text-xs opacity-60 group-hover:opacity-100 transition-opacity font-medium">
           DRAG
         </div>
+        )}
       </div>
       
       {/* Clickable Content Area - Right Side */}
       <div
-        className="flex-1 p-2 cursor-pointer hover:bg-white hover:bg-opacity-10 transition-colors relative"
+        className={`flex-1 ${height === 1 ? 'p-1' : 'p-2'} cursor-pointer hover:bg-white hover:bg-opacity-10 transition-colors relative`}
         onClick={(e) => {
           e.stopPropagation();
           onAppointmentClick(appointment);
@@ -101,36 +103,33 @@ export function DraggableDailyAppointment({
             <Scissors className="h-3 w-3 text-yellow-800" />
           </div>
         )}
-        <div className="font-bold truncate text-sm leading-tight mb-1">
+        <div className={`font-bold truncate ${height === 1 ? 'text-xs' : 'text-sm'} leading-tight ${height === 1 ? 'mb-0.5' : 'mb-1'}`}>
           {appointment.client.firstName} {appointment.client.lastName}
           {appointment.type === 'suggested' && (
             <span className="ml-1 text-xs opacity-90">(Suggerito)</span>
           )}
         </div>
-        <div className="truncate opacity-90 text-xs leading-tight mb-1">
-          {appointment.service.name}
-        </div>
-        {height > 1 && (
-          <div className="text-xs opacity-80 leading-tight font-medium">
-            {(() => {
-              // Calculate actual duration from appointment times
+        <div className={`truncate opacity-90 ${height === 1 ? 'text-xs' : 'text-xs'} leading-tight flex justify-between items-center`}>
+          <span className="truncate flex-1">{appointment.service.name}</span>
+          <span className={`ml-1 text-xs opacity-80 font-medium ${
+            (() => {
               const [startHours, startMinutes] = appointment.startTime.split(':').map(Number);
               const [endHours, endMinutes] = appointment.endTime.split(':').map(Number);
               const actualDuration = (endHours * 60 + endMinutes) - (startHours * 60 + startMinutes);
               const serviceDuration = appointment.service?.duration || 30;
-              
-              // Show if duration was manually modified
+              return actualDuration !== serviceDuration ? "text-yellow-200 font-bold" : "";
+            })()
+          }`}>
+            {(() => {
+              const [startHours, startMinutes] = appointment.startTime.split(':').map(Number);
+              const [endHours, endMinutes] = appointment.endTime.split(':').map(Number);
+              const actualDuration = (endHours * 60 + endMinutes) - (startHours * 60 + startMinutes);
+              const serviceDuration = appointment.service?.duration || 30;
               const isModified = actualDuration !== serviceDuration;
-              
-              return (
-                <span className={isModified ? "font-bold text-yellow-200" : ""}>
-                  {actualDuration}min
-                  {isModified && " ⚡"}
-                </span>
-              );
+              return `${actualDuration}'${isModified ? " ⚡" : ""}`;
             })()}
+          </span>
           </div>
-        )}
         {height > 2 && (
           <div className="text-xs opacity-75 leading-tight mt-1">
             €{(appointment.service.price / 100).toFixed(0)}

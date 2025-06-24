@@ -924,13 +924,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         
         const { openTime, closeTime, isOpen } = hours[day];
-        
+      
         if (isOpen && (!openTime || !closeTime)) {
           return res.status(400).json({ message: `Opening and closing times are required for ${day}` });
-        }
-        
-        // Validate time format
-        const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
+      }
+      
+      // Validate time format
+      const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
         if (isOpen && (!timeRegex.test(openTime) || !timeRegex.test(closeTime))) {
           return res.status(400).json({ message: `Invalid time format for ${day}. Use HH:MM format` });
         }

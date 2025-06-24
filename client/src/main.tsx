@@ -14,7 +14,7 @@ robotoFontLink.rel = "stylesheet";
 document.head.appendChild(robotoFontLink);
 
 // Add page title and meta description
-document.title = "Salone di Bellezza - Gestione Appuntamenti";
+document.title = "Gestione Salone - Sistema Appuntamenti";
 const metaDesc = document.createElement("meta");
 metaDesc.name = "description";
 metaDesc.content = "Sistema di gestione per salone di bellezza: appuntamenti, clienti, servizi e promemoria automatici. Ottimizzato per iPad e dispositivi mobili.";

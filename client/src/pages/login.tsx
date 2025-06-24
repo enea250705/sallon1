@@ -53,7 +53,7 @@ export default function Login() {
             </div>
             <div>
               <h1 className="text-3xl font-bold bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">
-                Salone di Bellezza
+                Gestione Salone
               </h1>
               <p className="text-gray-600 mt-2">Sistema di Gestione Professionale</p>
             </div>
@@ -136,7 +136,7 @@ export default function Login() {
 
           {/* Footer */}
           <div className="text-center text-sm text-gray-500">
-            <p>© 2024 Sistema Gestione Salone</p>
+            <p>© 2025 Sistema Gestione Salone</p>
             <p className="mt-1">Fatto con ❤️ per il tuo business</p>
           </div>
         </div>

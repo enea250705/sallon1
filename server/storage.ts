@@ -105,8 +105,9 @@ export interface IStorage {
   migrateRecurringReminders(): Promise<{message: string, created: boolean}>;
   
   // Opening hours management
-  getOpeningHours(): Promise<{ openTime: string; closeTime: string }>;
-  saveOpeningHours(hours: { openTime: string; closeTime: string }): Promise<boolean>;
+  getOpeningHours(): Promise<any>;
+  getOpeningHoursForDay(day: string): Promise<{ openTime: string; closeTime: string; isOpen: boolean }>;
+  saveOpeningHours(hours: any): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1106,8 +1107,8 @@ export class DatabaseStorage implements IStorage {
     return dates;
   }
 
-  // Opening hours management
-  async getOpeningHours(): Promise<{ openTime: string; closeTime: string }> {
+  // Opening hours management - supports per-day configuration
+  async getOpeningHours(): Promise<any> {
     try {
       const fs = await import('fs');
       const path = await import('path');
@@ -1115,26 +1116,51 @@ export class DatabaseStorage implements IStorage {
       
       // Check if file exists
       if (!fs.existsSync(filePath)) {
-        // Return default hours if file doesn't exist
-        return { openTime: '09:00', closeTime: '19:00' };
+        // Return default weekly hours if file doesn't exist
+        return this.getDefaultWeeklyHours();
       }
       
       const data = fs.readFileSync(filePath, 'utf8');
       const hours = JSON.parse(data);
       
-      // Validate format
-      if (!hours.openTime || !hours.closeTime) {
-        return { openTime: '09:00', closeTime: '19:00' };
+      // Check if it's old format (just openTime/closeTime)
+      if (hours.openTime && hours.closeTime && !hours.monday) {
+        // Convert old format to new format and save it
+        const convertedHours = this.convertOldFormatToWeekly(hours);
+        await this.saveOpeningHours(convertedHours);
+        return convertedHours;
+      }
+      
+      // Validate weekly format
+      if (!this.isValidWeeklyFormat(hours)) {
+        return this.getDefaultWeeklyHours();
       }
       
       return hours;
     } catch (error) {
       console.error('Error reading opening hours:', error);
-      return { openTime: '09:00', closeTime: '19:00' };
+      return this.getDefaultWeeklyHours();
     }
   }
 
-  async saveOpeningHours(hours: { openTime: string; closeTime: string }): Promise<boolean> {
+  async getOpeningHoursForDay(day: string): Promise<{ openTime: string; closeTime: string; isOpen: boolean }> {
+    try {
+      const allHours = await this.getOpeningHours();
+      const dayHours = allHours[day.toLowerCase()];
+      
+      if (dayHours && dayHours.openTime && dayHours.closeTime) {
+        return dayHours;
+      }
+      
+      // Fallback to default hours
+      return { openTime: "08:00", closeTime: "20:00", isOpen: true };
+    } catch (error) {
+      console.error(`Error getting opening hours for ${day}:`, error);
+      return { openTime: "08:00", closeTime: "20:00", isOpen: true };
+    }
+  }
+
+  async saveOpeningHours(hours: any): Promise<boolean> {
     try {
       const fs = await import('fs');
       const path = await import('path');
@@ -1146,10 +1172,9 @@ export class DatabaseStorage implements IStorage {
         fs.mkdirSync(dataDir, { recursive: true });
       }
       
-      // Validate time format
-      const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
-      if (!timeRegex.test(hours.openTime) || !timeRegex.test(hours.closeTime)) {
-        throw new Error('Invalid time format');
+      // Validate weekly format
+      if (!this.isValidWeeklyFormat(hours)) {
+        throw new Error('Invalid weekly hours format');
       }
       
       fs.writeFileSync(filePath, JSON.stringify(hours, null, 2));
@@ -1158,6 +1183,55 @@ export class DatabaseStorage implements IStorage {
       console.error('Error saving opening hours:', error);
       return false;
     }
+  }
+
+  private getDefaultWeeklyHours(): any {
+    return {
+      monday: { openTime: "08:00", closeTime: "22:00", isOpen: true },
+      tuesday: { openTime: "08:00", closeTime: "22:00", isOpen: true },
+      wednesday: { openTime: "08:00", closeTime: "22:00", isOpen: true },
+      thursday: { openTime: "08:00", closeTime: "22:00", isOpen: true },
+      friday: { openTime: "08:00", closeTime: "22:00", isOpen: true },
+      saturday: { openTime: "09:00", closeTime: "20:00", isOpen: true },
+      sunday: { openTime: "10:00", closeTime: "18:00", isOpen: false }
+    };
+  }
+
+  private convertOldFormatToWeekly(oldHours: any): any {
+    const defaultHours = {
+      openTime: oldHours.openTime || "08:00",
+      closeTime: oldHours.closeTime || "20:00",
+      isOpen: true
+    };
+    
+    return {
+      monday: defaultHours,
+      tuesday: defaultHours,
+      wednesday: defaultHours,
+      thursday: defaultHours,
+      friday: defaultHours,
+      saturday: { ...defaultHours, openTime: "09:00", closeTime: "18:00" },
+      sunday: { ...defaultHours, openTime: "10:00", closeTime: "16:00", isOpen: false }
+    };
+  }
+
+  private isValidWeeklyFormat(hours: any): boolean {
+    const requiredDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+    const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
+    
+    for (const day of requiredDays) {
+      if (!hours[day]) return false;
+      
+      const dayHours = hours[day];
+      if (typeof dayHours.isOpen !== 'boolean') return false;
+      
+      if (dayHours.isOpen) {
+        if (!dayHours.openTime || !dayHours.closeTime) return false;
+        if (!timeRegex.test(dayHours.openTime) || !timeRegex.test(dayHours.closeTime)) return false;
+      }
+    }
+    
+    return true;
   }
 }
 

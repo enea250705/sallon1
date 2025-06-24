@@ -180,9 +180,26 @@ export default function Calendar() {
         if (response.ok) {
           return response.json();
         }
-        return { openTime: "08:00", closeTime: "20:00" };
+        // Return default weekly hours on error
+        return {
+          monday: { openTime: "08:00", closeTime: "20:00", isOpen: true },
+          tuesday: { openTime: "08:00", closeTime: "20:00", isOpen: true },
+          wednesday: { openTime: "08:00", closeTime: "20:00", isOpen: true },
+          thursday: { openTime: "08:00", closeTime: "20:00", isOpen: true },
+          friday: { openTime: "08:00", closeTime: "20:00", isOpen: true },
+          saturday: { openTime: "09:00", closeTime: "18:00", isOpen: true },
+          sunday: { openTime: "10:00", closeTime: "16:00", isOpen: false }
+        };
       } catch (error) {
-        return { openTime: "08:00", closeTime: "20:00" };
+        return {
+          monday: { openTime: "08:00", closeTime: "20:00", isOpen: true },
+          tuesday: { openTime: "08:00", closeTime: "20:00", isOpen: true },
+          wednesday: { openTime: "08:00", closeTime: "20:00", isOpen: true },
+          thursday: { openTime: "08:00", closeTime: "20:00", isOpen: true },
+          friday: { openTime: "08:00", closeTime: "20:00", isOpen: true },
+          saturday: { openTime: "09:00", closeTime: "18:00", isOpen: true },
+          sunday: { openTime: "10:00", closeTime: "16:00", isOpen: false }
+        };
       }
     },
     staleTime: 0, // Always fetch fresh data
@@ -621,30 +638,49 @@ export default function Calendar() {
     }
   }, [openingHours]);
 
-  // Generate time slots based on opening hours (30min intervals)
+  // Helper function to get day name from date
+  const getDayName = (date: Date) => {
+    const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    return days[date.getDay()];
+  };
+
+  // Generate time slots based on opening hours for the selected day (15min intervals)
   const timeSlots = React.useMemo(() => {
-    // Use default hours if openingHours is not loaded yet
-    const defaultOpenTime = "08:00";
-    const defaultCloseTime = "20:00";
+    // Get the day name for the selected date
+    const currentDay = getDayName(selectedDate);
     
-    const openTime = openingHours?.openTime || defaultOpenTime;
-    const closeTime = openingHours?.closeTime || defaultCloseTime;
+    // Get hours for the current day
+    let dayHours;
+    if (openingHours && openingHours[currentDay]) {
+      dayHours = openingHours[currentDay];
+    } else if (openingHours && openingHours.openTime) {
+      // Old format fallback
+      dayHours = { openTime: openingHours.openTime, closeTime: openingHours.closeTime, isOpen: true };
+    } else {
+      // Default fallback
+      dayHours = { openTime: "08:00", closeTime: "20:00", isOpen: true };
+    }
     
-    const [openHour, openMinute] = openTime.split(':').map(Number);
-    const [closeHour, closeMinute] = closeTime.split(':').map(Number);
+    // If the salon is closed this day, return empty slots
+    if (!dayHours.isOpen) {
+      return [];
+    }
+    
+    const [openHour, openMinute] = dayHours.openTime.split(':').map(Number);
+    const [closeHour, closeMinute] = dayHours.closeTime.split(':').map(Number);
     
     const openTimeMinutes = openHour * 60 + openMinute;
     const closeTimeMinutes = closeHour * 60 + closeMinute;
     
     const slots = [];
-    for (let minutes = openTimeMinutes; minutes < closeTimeMinutes; minutes += 30) {
+    for (let minutes = openTimeMinutes; minutes < closeTimeMinutes; minutes += 15) {
       const hour = Math.floor(minutes / 60);
       const minute = minutes % 60;
       slots.push(`${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`);
     }
     
     return slots;
-  }, [openingHours, forceUpdate]);
+  }, [openingHours, selectedDate, forceUpdate]);
 
   // Filter stylists based on selection
   const filteredStylists = selectedStylistFilter === 'all' 
@@ -661,14 +697,27 @@ export default function Calendar() {
       return 0;
     }
     
-    // Use default or actual opening time
-    const openTime = openingHours?.openTime || "08:00";
-    const [openHour, openMinute] = openTime.split(':').map(Number);
+    // Get the day name for the selected date
+    const currentDay = getDayName(selectedDate);
+    
+    // Get hours for the current day
+    let dayHours;
+    if (openingHours && openingHours[currentDay]) {
+      dayHours = openingHours[currentDay];
+    } else if (openingHours && openingHours.openTime) {
+      // Old format fallback
+      dayHours = { openTime: openingHours.openTime, closeTime: openingHours.closeTime, isOpen: true };
+    } else {
+      // Default fallback
+      dayHours = { openTime: "08:00", closeTime: "20:00", isOpen: true };
+    }
+    
+    const [openHour, openMinute] = dayHours.openTime.split(':').map(Number);
     const openTimeMinutes = openHour * 60 + openMinute;
     const timeMinutes = hours * 60 + minutes;
     
     const relativeMinutes = timeMinutes - openTimeMinutes;
-    return Math.max(0, relativeMinutes / 30); // Each slot is 30 minutes
+    return Math.max(0, relativeMinutes / 15); // Each slot is 15 minutes
   };
 
   // Helper function to get appointment height based on duration
@@ -681,8 +730,8 @@ export default function Calendar() {
     
     const durationMinutes = endTotalMinutes - startTotalMinutes;
     
-    // Each time slot is 30 minutes, so calculate how many slots the appointment spans
-    return Math.max(1, Math.ceil(durationMinutes / 30));
+    // Each time slot is 15 minutes, so calculate how many slots the appointment spans
+    return Math.max(1, Math.ceil(durationMinutes / 15));
   };
 
   // Helper function to check if a time slot is occupied by any appointment (starting or extending)
@@ -1644,8 +1693,27 @@ export default function Calendar() {
               </div>
             ) : (
               <div className="w-full">
-                {/* Mobile Day View */}
-                <div className="block sm:hidden">
+                {/* Check if salon is closed today */}
+                {timeSlots.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-16 text-center">
+                    <div className="text-6xl mb-4">🏢</div>
+                    <h3 className="text-2xl font-bold text-gray-900 mb-2">Salone Chiuso</h3>
+                    <p className="text-gray-600 mb-4">
+                      Il salone è chiuso {format(selectedDate, 'EEEE d MMMM', { locale: it })}
+                    </p>
+                    <Button 
+                      onClick={() => {
+                        setSelectedDate(new Date());
+                      }}
+                      className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700"
+                    >
+                      Vai a Oggi
+                    </Button>
+                  </div>
+                ) : (
+                  <div>
+                    {/* Mobile Day View */}
+                    <div className="block sm:hidden">
                   <div className="space-y-4 p-4">
                     {filteredStylists.map((stylist: any) => (
                       <div key={stylist.id} className="bg-white rounded-lg border border-gray-200 overflow-hidden">
@@ -1778,6 +1846,8 @@ export default function Calendar() {
                     ))}
                   </div>
                 </div>
+                  </div>
+                )}
               </div>
             )}
           </CardContent>

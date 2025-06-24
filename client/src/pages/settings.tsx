@@ -10,7 +10,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, MessageSquare, Edit, Trash2, Settings as SettingsIcon } from "lucide-react";
+import { Plus, MessageSquare, Edit, Trash2, Settings as SettingsIcon, Clock, Calendar } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -19,9 +20,20 @@ const templateSchema = z.object({
   template: z.string().min(1, "Template è richiesto"),
 });
 
-const hoursSchema = z.object({
+const dayHoursSchema = z.object({
   openTime: z.string().min(1, "Orario di apertura è richiesto"),
   closeTime: z.string().min(1, "Orario di chiusura è richiesto"),
+  isOpen: z.boolean(),
+});
+
+const weeklyHoursSchema = z.object({
+  monday: dayHoursSchema,
+  tuesday: dayHoursSchema,
+  wednesday: dayHoursSchema,
+  thursday: dayHoursSchema,
+  friday: dayHoursSchema,
+  saturday: dayHoursSchema,
+  sunday: dayHoursSchema,
 });
 
 type MessageTemplate = {
@@ -46,11 +58,16 @@ export default function Settings() {
     },
   });
 
-  const hoursForm = useForm<z.infer<typeof hoursSchema>>({
-    resolver: zodResolver(hoursSchema),
+  const hoursForm = useForm<z.infer<typeof weeklyHoursSchema>>({
+    resolver: zodResolver(weeklyHoursSchema),
     defaultValues: {
-      openTime: "09:00",
-      closeTime: "19:00",
+      monday: { openTime: "08:00", closeTime: "22:00", isOpen: true },
+      tuesday: { openTime: "08:00", closeTime: "22:00", isOpen: true },
+      wednesday: { openTime: "08:00", closeTime: "22:00", isOpen: true },
+      thursday: { openTime: "08:00", closeTime: "22:00", isOpen: true },
+      friday: { openTime: "08:00", closeTime: "22:00", isOpen: true },
+      saturday: { openTime: "09:00", closeTime: "20:00", isOpen: true },
+      sunday: { openTime: "10:00", closeTime: "18:00", isOpen: false },
     },
   });
 
@@ -61,24 +78,66 @@ export default function Settings() {
   // Fetch opening hours
   const { data: openingHours } = useQuery({
     queryKey: ["/api/settings/hours"],
+    staleTime: 0, // Always fetch fresh data
+    refetchOnWindowFocus: true, // Refetch when window gets focus
     queryFn: async () => {
       try {
-        return await apiRequest("GET", "/api/settings/hours");
+        const response = await fetch("/api/settings/hours");
+        if (response.ok) {
+          return response.json();
+        }
+        // Return default weekly hours on error
+        return {
+          monday: { openTime: "08:00", closeTime: "22:00", isOpen: true },
+          tuesday: { openTime: "08:00", closeTime: "22:00", isOpen: true },
+          wednesday: { openTime: "08:00", closeTime: "22:00", isOpen: true },
+          thursday: { openTime: "08:00", closeTime: "22:00", isOpen: true },
+          friday: { openTime: "08:00", closeTime: "22:00", isOpen: true },
+          saturday: { openTime: "09:00", closeTime: "20:00", isOpen: true },
+          sunday: { openTime: "10:00", closeTime: "18:00", isOpen: false }
+        };
       } catch (error) {
         console.error("Error fetching opening hours:", error);
-        // Return default hours on error
-        return { openTime: "09:00", closeTime: "19:00" };
+        // Return default weekly hours on error
+        return {
+          monday: { openTime: "08:00", closeTime: "22:00", isOpen: true },
+          tuesday: { openTime: "08:00", closeTime: "22:00", isOpen: true },
+          wednesday: { openTime: "08:00", closeTime: "22:00", isOpen: true },
+          thursday: { openTime: "08:00", closeTime: "22:00", isOpen: true },
+          friday: { openTime: "08:00", closeTime: "22:00", isOpen: true },
+          saturday: { openTime: "09:00", closeTime: "20:00", isOpen: true },
+          sunday: { openTime: "10:00", closeTime: "18:00", isOpen: false }
+        };
       }
     },
   });
 
   // Update form when data loads
   useEffect(() => {
+    console.log('🔄 Settings: Opening hours data received:', openingHours);
     if (openingHours) {
-      hoursForm.reset({
-        openTime: openingHours.openTime || "09:00",
-        closeTime: openingHours.closeTime || "19:00",
-      });
+      // Check if it's the new weekly format
+      if (openingHours.monday) {
+        console.log('✅ Settings: Using new weekly format');
+        hoursForm.reset(openingHours);
+      } else {
+        console.log('🔄 Settings: Converting old format to weekly');
+        // Old format - convert to weekly
+        const defaultHours = {
+          openTime: openingHours.openTime || "08:00",
+          closeTime: openingHours.closeTime || "22:00",
+          isOpen: true
+        };
+        hoursForm.reset({
+          monday: defaultHours,
+          tuesday: defaultHours,
+          wednesday: defaultHours,
+          thursday: defaultHours,
+          friday: defaultHours,
+          saturday: { ...defaultHours, openTime: "09:00", closeTime: "20:00" },
+          sunday: { ...defaultHours, openTime: "10:00", closeTime: "18:00", isOpen: false },
+        });
+      }
     }
   }, [openingHours, hoursForm]);
 
@@ -135,17 +194,36 @@ export default function Settings() {
   });
 
   const saveHoursMutation = useMutation({
-    mutationFn: (data: z.infer<typeof hoursSchema>) => 
-      apiRequest("POST", "/api/settings/hours", data),
+    mutationFn: async (data: z.infer<typeof weeklyHoursSchema>) => {
+      console.log('💾 Settings: Saving hours data:', data);
+      const response = await fetch("/api/settings/hours", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Settings: Save failed:', errorText);
+        throw new Error(errorText);
+      }
+      
+      const result = await response.json();
+      console.log('✅ Settings: Save successful:', result);
+      return result;
+    },
     onSuccess: () => {
       // Invalidate both settings and calendar queries to update everywhere
       queryClient.invalidateQueries({ queryKey: ["/api/settings/hours"] });
-      toast({ title: "Orari salvati con successo - Il calendario si aggiornerà automaticamente" });
+      toast({ title: "Orari settimanali salvati con successo - Il calendario si aggiornerà automaticamente" });
     },
-    onError: () => {
+    onError: (error) => {
+      console.error('❌ Settings: Save error:', error);
       toast({ 
         title: "Errore", 
-        description: "Impossibile salvare gli orari",
+        description: "Impossibile salvare gli orari: " + error.message,
         variant: "destructive" 
       });
     },
@@ -349,57 +427,125 @@ export default function Settings() {
               </div>
             </CardContent>
           </Card>
-
-          <Card className="shadow-lg border-0">
-            <CardHeader>
-              <CardTitle>Orari di Apertura</CardTitle>
-              <CardDescription>
-                Configura gli orari di lavoro del salone
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Form {...hoursForm}>
-                <form onSubmit={hoursForm.handleSubmit((data) => saveHoursMutation.mutate(data))} className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                      control={hoursForm.control}
-                      name="openTime"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Apertura</FormLabel>
-                          <FormControl>
-                            <Input type="time" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={hoursForm.control}
-                      name="closeTime"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Chiusura</FormLabel>
-                          <FormControl>
-                            <Input type="time" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                  <Button 
-                    type="submit" 
-                    className="w-full bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700"
-                    disabled={saveHoursMutation.isPending}
-                  >
-                    {saveHoursMutation.isPending ? "Salvando..." : "Salva Orari"}
-                  </Button>
-                </form>
-              </Form>
-            </CardContent>
-          </Card>
         </div>
+
+        {/* Weekly Opening Hours Section */}
+        <Card className="shadow-lg border-0">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <Calendar className="h-5 w-5" />
+              <span>Orari di Apertura Settimanali</span>
+            </CardTitle>
+            <CardDescription>
+              Configura gli orari di lavoro per ogni giorno della settimana
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Form {...hoursForm}>
+              <form onSubmit={hoursForm.handleSubmit((data) => saveHoursMutation.mutate(data))} className="space-y-6">
+                <div className="space-y-4">
+                  {[
+                    { key: 'monday', label: 'Lunedì', icon: '👔' },
+                    { key: 'tuesday', label: 'Martedì', icon: '💼' },
+                    { key: 'wednesday', label: 'Mercoledì', icon: '📅' },
+                    { key: 'thursday', label: 'Giovedì', icon: '⭐' },
+                    { key: 'friday', label: 'Venerdì', icon: '🎉' },
+                    { key: 'saturday', label: 'Sabato', icon: '🌟' },
+                    { key: 'sunday', label: 'Domenica', icon: '🏠' }
+                  ].map(({ key, label, icon }) => (
+                    <div key={key} className="border rounded-lg p-4 bg-gradient-to-r from-gray-50 to-gray-100">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center space-x-3">
+                          <span className="text-2xl">{icon}</span>
+                          <div>
+                            <h3 className="font-semibold text-gray-900">{label}</h3>
+                            <p className="text-sm text-gray-500">Configura orari per {label.toLowerCase()}</p>
+                          </div>
+                        </div>
+                        <FormField
+                          control={hoursForm.control}
+                          name={`${key}.isOpen` as any}
+                          render={({ field }) => (
+                            <FormItem className="flex items-center space-x-2">
+                              <FormControl>
+                                <Switch
+                                  checked={field.value}
+                                  onCheckedChange={field.onChange}
+                                />
+                              </FormControl>
+                              <FormLabel className="text-sm font-medium">
+                                {field.value ? 'Aperto' : 'Chiuso'}
+                              </FormLabel>
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                      
+                      <FormField
+                        control={hoursForm.control}
+                        name={`${key}.isOpen` as any}
+                        render={({ field }) => (
+                          field.value && (
+                            <div className="grid grid-cols-2 gap-4">
+                              <FormField
+                                control={hoursForm.control}
+                                name={`${key}.openTime` as any}
+                                render={({ field: timeField }) => (
+                                  <FormItem>
+                                    <FormLabel className="flex items-center space-x-1">
+                                      <Clock className="h-4 w-4" />
+                                      <span>Apertura</span>
+                                    </FormLabel>
+                                    <FormControl>
+                                      <Input 
+                                        type="time" 
+                                        {...timeField}
+                                        className="bg-white border-gray-300"
+                                      />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                              <FormField
+                                control={hoursForm.control}
+                                name={`${key}.closeTime` as any}
+                                render={({ field: timeField }) => (
+                                  <FormItem>
+                                    <FormLabel className="flex items-center space-x-1">
+                                      <Clock className="h-4 w-4" />
+                                      <span>Chiusura</span>
+                                    </FormLabel>
+                                    <FormControl>
+                                      <Input 
+                                        type="time" 
+                                        {...timeField}
+                                        className="bg-white border-gray-300"
+                                      />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            </div>
+                          )
+                        )}
+                      />
+                    </div>
+                  ))}
+                </div>
+                
+                <Button 
+                  type="submit" 
+                  className="w-full bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 py-3 text-lg font-semibold"
+                  disabled={saveHoursMutation.isPending}
+                >
+                  {saveHoursMutation.isPending ? "Salvando..." : "💾 Salva Orari Settimanali"}
+                </Button>
+              </form>
+            </Form>
+          </CardContent>
+        </Card>
       </div>
     </Layout>
   );

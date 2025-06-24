@@ -1,4 +1,37 @@
 {
-  "openTime": "07:00",
-  "closeTime": "22:00"
+  "monday": {
+    "openTime": "08:00",
+    "closeTime": "22:00",
+    "isOpen": true
+  },
+  "tuesday": {
+    "openTime": "08:00",
+    "closeTime": "22:00",
+    "isOpen": true
+  },
+  "wednesday": {
+    "openTime": "08:00",
+    "closeTime": "22:00",
+    "isOpen": true
+  },
+  "thursday": {
+    "openTime": "09:00",
+    "closeTime": "22:00",
+    "isOpen": true
+  },
+  "friday": {
+    "openTime": "09:00",
+    "closeTime": "22:00",
+    "isOpen": true
+  },
+  "saturday": {
+    "openTime": "09:00",
+    "closeTime": "20:00",
+    "isOpen": true
+  },
+  "sunday": {
+    "openTime": "10:00",
+    "closeTime": "18:00",
+    "isOpen": false
+  }
 }

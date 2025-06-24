@@ -883,7 +883,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Opening hours settings
+  // Opening hours settings - now supports per-day configuration
   app.get("/api/settings/hours", isAuthenticated, async (req, res) => {
     try {
       const hours = await storage.getOpeningHours();
@@ -894,27 +894,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get hours for specific day
+  app.get("/api/settings/hours/:day", isAuthenticated, async (req, res) => {
+    try {
+      const day = req.params.day.toLowerCase();
+      const validDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+      
+      if (!validDays.includes(day)) {
+        return res.status(400).json({ message: "Invalid day. Use: monday, tuesday, etc." });
+      }
+      
+      const hours = await storage.getOpeningHoursForDay(day);
+      res.json(hours);
+    } catch (error) {
+      console.error(`Error fetching opening hours for ${req.params.day}:`, error);
+      res.status(500).json({ message: "Failed to fetch opening hours" });
+    }
+  });
+
   app.post("/api/settings/hours", isAuthenticated, async (req, res) => {
     try {
-      const { openTime, closeTime } = req.body;
+      const hours = req.body;
       
-      if (!openTime || !closeTime) {
-        return res.status(400).json({ message: "Opening and closing times are required" });
+      // Validate that all days are provided
+      const requiredDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+      for (const day of requiredDays) {
+        if (!hours[day]) {
+          return res.status(400).json({ message: `Missing hours for ${day}` });
+        }
+        
+        const { openTime, closeTime, isOpen } = hours[day];
+        
+        if (isOpen && (!openTime || !closeTime)) {
+          return res.status(400).json({ message: `Opening and closing times are required for ${day}` });
+        }
+        
+        // Validate time format
+        const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
+        if (isOpen && (!timeRegex.test(openTime) || !timeRegex.test(closeTime))) {
+          return res.status(400).json({ message: `Invalid time format for ${day}. Use HH:MM format` });
+        }
       }
       
-      // Validate time format
-      const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
-      if (!timeRegex.test(openTime) || !timeRegex.test(closeTime)) {
-        return res.status(400).json({ message: "Invalid time format. Use HH:MM format" });
-      }
-      
-      const success = await storage.saveOpeningHours({ openTime, closeTime });
+      const success = await storage.saveOpeningHours(hours);
       
       if (success) {
         res.json({ 
           message: "Opening hours saved successfully",
-          openTime,
-          closeTime
+          hours
         });
       } else {
         res.status(500).json({ message: "Failed to save opening hours" });

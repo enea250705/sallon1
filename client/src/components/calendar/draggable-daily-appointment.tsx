@@ -45,7 +45,7 @@ export function DraggableDailyAppointment({
 
   const combinedStyle = {
     ...style,
-    height: `${height * 50 - 4}px`, // Dynamic height: each slot is 50px, minus 4px for spacing
+    height: `${height * 60 - 4}px`, // Dynamic height: each slot is 60px, minus 4px for spacing
   };
 
   // Calculate if duration was modified

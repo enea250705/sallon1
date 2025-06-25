@@ -33,41 +33,64 @@ export class ReminderScheduler {
 
       console.log(`📋 Found ${appointments.length} appointments for tomorrow`);
 
+      // Group appointments by client
+      const appointmentsByClient = new Map();
+      
+      for (const appointment of appointments) {
+        const clientId = appointment.client.id;
+        
+        if (!appointmentsByClient.has(clientId)) {
+          appointmentsByClient.set(clientId, {
+            client: appointment.client,
+            appointments: []
+          });
+        }
+        
+        appointmentsByClient.get(clientId).appointments.push(appointment);
+      }
+
       let successCount = 0;
       let failureCount = 0;
 
-      // Process each appointment
-      for (const appointment of appointments) {
+      // Process each client (send one message per client)
+      for (const [clientId, clientData] of appointmentsByClient) {
         try {
-          // Skip if reminder already sent
-          if (appointment.reminderSent) {
-            console.log(`✅ Reminder already sent for appointment ID ${appointment.id}`);
+          const { client, appointments: clientAppointments } = clientData;
+          
+          // Check if any reminder was already sent for this client today
+          const alreadySent = clientAppointments.some(apt => apt.reminderSent);
+          if (alreadySent) {
+            console.log(`✅ Reminder already sent for client ${client.firstName} ${client.lastName}`);
             continue;
           }
 
           // Validate phone number
-          if (!appointment.client.phone || !whatsAppService.validatePhoneNumber(appointment.client.phone)) {
-            console.log(`⚠️ Invalid phone number for ${appointment.client.firstName}: ${appointment.client.phone}`);
+          if (!client.phone || !whatsAppService.validatePhoneNumber(client.phone)) {
+            console.log(`⚠️ Invalid phone number for ${client.firstName}: ${client.phone}`);
             failureCount++;
             continue;
           }
 
-          // Send WhatsApp reminder
-          const reminderSent = await whatsAppService.sendAppointmentReminder({
-            clientName: appointment.client.firstName,
-            clientPhone: appointment.client.phone,
-            appointmentTime: appointment.startTime.slice(0, 5), // Format HH:MM
-            serviceName: appointment.service.name
+          // Send WhatsApp reminder with all appointments
+          const reminderSent = await whatsAppService.sendClientDailyReminder({
+            clientName: client.firstName,
+            clientPhone: client.phone,
+            appointments: clientAppointments.map(apt => ({
+              appointmentTime: apt.startTime.slice(0, 5), // Format HH:MM
+              serviceName: apt.service.name
+            }))
           });
 
           if (reminderSent) {
-            // Mark reminder as sent in database
-            await storage.markReminderSent(appointment.id);
+            // Mark reminder as sent for ALL appointments of this client
+            for (const appointment of clientAppointments) {
+              await storage.markReminderSent(appointment.id);
+            }
             successCount++;
-            console.log(`✅ Reminder sent to ${appointment.client.firstName} (${appointment.client.phone})`);
+            console.log(`✅ Reminder sent to ${client.firstName} for ${clientAppointments.length} appointment(s)`);
           } else {
             failureCount++;
-            console.log(`❌ Failed to send reminder to ${appointment.client.firstName}`);
+            console.log(`❌ Failed to send reminder to ${client.firstName}`);
           }
 
           // Add small delay between messages to avoid rate limiting
@@ -75,11 +98,11 @@ export class ReminderScheduler {
 
         } catch (error) {
           failureCount++;
-          console.error(`❌ Error processing appointment ID ${appointment.id}:`, error);
+          console.error(`❌ Error processing client ${clientId}:`, error);
         }
       }
 
-      console.log(`📊 Reminder summary: ${successCount} sent, ${failureCount} failed`);
+      console.log(`📊 Reminder summary: ${successCount} clients notified, ${failureCount} failed`);
 
     } catch (error) {
       console.error('❌ Error in daily reminder check:', error);

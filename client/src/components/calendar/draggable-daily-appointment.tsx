@@ -1,6 +1,7 @@
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical, Scissors } from 'lucide-react';
+import { useState, useEffect } from 'react';
 
 interface DraggableDailyAppointmentProps {
   appointment: any;
@@ -43,9 +44,34 @@ export function DraggableDailyAppointment({
     transform: CSS.Translate.toString(transform),
   };
 
+  // Track window width for responsive design
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Calculate responsive height based on device
+  const getSlotHeight = () => {
+    const isMobile = windowWidth <= 768;
+    const isTablet = windowWidth > 768 && windowWidth <= 1024;
+    
+    if (isMobile) {
+      return 25; // Smaller slots for mobile
+    } else if (isTablet) {
+      return 28; // Medium slots for tablets like iPad
+    } else {
+      return 30; // Standard 30px slots for desktop (15-minute slots)
+    }
+  };
+
+  const slotHeight = getSlotHeight();
+  
   const combinedStyle = {
     ...style,
-    height: `${height * 60 - 4}px`, // Dynamic height: each slot is 60px, minus 4px for spacing
+    height: `${height * slotHeight - 2}px`, // Dynamic height based on device and 15-minute slots
   };
 
   // Calculate if duration was modified
@@ -61,7 +87,9 @@ export function DraggableDailyAppointment({
       style={combinedStyle}
       {...attributes}
       title={`${appointment.client.firstName} ${appointment.client.lastName} - ${appointment.service.name}${isDurationModified ? ' (Durata personalizzata: ' + actualDuration + 'min)' : ''}`}
-      className={`relative w-full text-white text-sm rounded-lg shadow-lg transition-all duration-200 ${height === 1 ? 'my-0.5' : 'my-1'} flex ${
+      className={`relative w-full text-white rounded-lg shadow-lg transition-all duration-200 ${
+        height === 1 ? 'my-0.5 text-xs' : height === 2 ? 'my-0.5 text-xs' : 'my-1 text-sm'
+      } flex ${
         isDragging ? 'opacity-50 z-50' : 'z-10'
       } ${
         isCut ? 'opacity-60 border-2 border-dashed border-yellow-400' : ''

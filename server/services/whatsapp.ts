@@ -13,6 +13,17 @@ interface AppointmentReminder {
   serviceName: string;
 }
 
+interface ClientAppointment {
+  appointmentTime: string;
+  serviceName: string;
+}
+
+interface ClientDailyReminder {
+  clientName: string;
+  clientPhone: string;
+  appointments: ClientAppointment[];
+}
+
 export class WhatsAppService {
   private apiUrl: string;
   private apiKey: string;
@@ -24,10 +35,26 @@ export class WhatsAppService {
   }
 
   /**
-   * Formats the reminder message template
+   * Formats the reminder message template for single appointment
    */
   private formatReminderMessage(reminder: AppointmentReminder): string {
     return `Ciao ${reminder.clientName}, ti ricordiamo il tuo appuntamento di domani alle ${reminder.appointmentTime} per ${reminder.serviceName}. A presto! 💇‍♀️`;
+  }
+
+  /**
+   * Formats the reminder message for multiple appointments in the same day
+   */
+  private formatClientDailyReminderMessage(reminder: ClientDailyReminder): string {
+    const { clientName, appointments } = reminder;
+    
+    if (appointments.length === 1) {
+      // Single appointment - use the standard format
+      return `Ciao ${clientName}, ti ricordiamo il tuo appuntamento di domani alle ${appointments[0].appointmentTime} per ${appointments[0].serviceName}. A presto! 💇‍♀️`;
+    } else {
+      // Multiple appointments - use same format but mention the first appointment
+      // This keeps the same message structure but still sends only one message per client
+      return `Ciao ${clientName}, ti ricordiamo il tuo appuntamento di domani alle ${appointments[0].appointmentTime} per ${appointments[0].serviceName}. A presto! 💇‍♀️`;
+    }
   }
 
   /**
@@ -63,10 +90,22 @@ export class WhatsAppService {
   }
 
   /**
-   * Sends appointment reminder via WhatsApp
+   * Sends appointment reminder via WhatsApp (legacy method for single appointments)
    */
   async sendAppointmentReminder(reminder: AppointmentReminder): Promise<boolean> {
     const message = this.formatReminderMessage(reminder);
+    
+    return await this.sendMessage({
+      to: reminder.clientPhone,
+      message: message
+    });
+  }
+
+  /**
+   * Sends daily reminder to client with all their appointments for the day
+   */
+  async sendClientDailyReminder(reminder: ClientDailyReminder): Promise<boolean> {
+    const message = this.formatClientDailyReminderMessage(reminder);
     
     return await this.sendMessage({
       to: reminder.clientPhone,

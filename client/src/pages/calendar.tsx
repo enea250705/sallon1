@@ -66,9 +66,18 @@ export default function Calendar() {
   const [isCutMode, setIsCutMode] = useState(false);
   // Client selector state
   const [isClientSelectorOpen, setIsClientSelectorOpen] = useState(false);
+  // Responsive design state
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Track window resize for responsive design
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
 
 
@@ -1751,7 +1760,7 @@ export default function Calendar() {
                                   onEmptyClick={() => handleEmptyCellClick(stylist.id, time)}
                                   hasPendingPaste={!!clipboardAppointment}
                                 >
-                                  <div className="flex-1 min-h-[60px] relative overflow-visible">
+                                  <div className="flex-1 min-h-[25px] md:min-h-[28px] lg:min-h-[30px] relative overflow-visible">
                                   {appointmentAtStart && (
                                       <DraggableDailyAppointment
                                         appointment={appointmentAtStart}
@@ -1788,7 +1797,10 @@ export default function Calendar() {
                   {/* Time grid */}
                   <div className="relative bg-white">
                     {timeSlots.map((time, timeIndex) => (
-                      <div key={time} className="grid border-b border-gray-200 hover:bg-gray-50" style={{ gridTemplateColumns: '120px repeat(' + filteredStylists.length + ', 1fr)', height: '60px' }}>
+                      <div key={time} className="grid border-b border-gray-200 hover:bg-gray-50" style={{ 
+                        gridTemplateColumns: '120px repeat(' + filteredStylists.length + ', 1fr)', 
+                        height: windowWidth <= 768 ? '25px' : windowWidth <= 1024 ? '28px' : '30px'
+                      }}>
                         {/* Time label */}
                         <div className="p-3 bg-gradient-to-r from-gray-50 to-gray-100 border-r border-gray-300 text-sm font-medium text-gray-700 flex items-center justify-center">
                           <div className="text-center">

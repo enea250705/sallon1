@@ -62,6 +62,33 @@ export const stylists = pgTable("stylists", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Stylist schedules table for individual working hours and breaks
+export const stylistSchedules = pgTable("stylist_schedules", {
+  id: serial("id").primaryKey(),
+  stylistId: integer("stylist_id").references(() => stylists.id).notNull(),
+  date: date("date").notNull(), // Specific date for this schedule
+  startTime: time("start_time"), // When stylist starts work (null = not working)
+  endTime: time("end_time"), // When stylist ends work (null = not working)
+  isWorking: boolean("is_working").default(true), // Whether stylist is working this day
+  breaks: jsonb("breaks"), // Array of break periods: [{startTime: "12:00", endTime: "13:00", type: "lunch"}]
+  notes: text("notes"), // Optional notes about the schedule
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Weekly template for stylist default schedules
+export const stylistWeeklyTemplate = pgTable("stylist_weekly_template", {
+  id: serial("id").primaryKey(),
+  stylistId: integer("stylist_id").references(() => stylists.id).notNull(),
+  dayOfWeek: integer("day_of_week").notNull(), // 0-6 (Monday-Sunday)
+  startTime: time("start_time"), // Default start time for this day
+  endTime: time("end_time"), // Default end time for this day
+  isWorking: boolean("is_working").default(true), // Whether stylist normally works this day
+  breaks: jsonb("breaks"), // Default breaks for this day
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Appointments table
 export const appointments = pgTable("appointments", {
   id: serial("id").primaryKey(),
@@ -138,6 +165,18 @@ export const insertStylistSchema = createInsertSchema(stylists).omit({
   createdAt: true,
 });
 
+export const insertStylistScheduleSchema = createInsertSchema(stylistSchedules).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertStylistWeeklyTemplateSchema = createInsertSchema(stylistWeeklyTemplate).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertAppointmentSchema = createInsertSchema(appointments).omit({
   id: true,
   createdAt: true,
@@ -179,6 +218,12 @@ export type InsertMessageTemplate = z.infer<typeof insertMessageTemplateSchema>;
 
 export type RecurringReminder = typeof recurringReminders.$inferSelect;
 export type InsertRecurringReminder = z.infer<typeof insertRecurringReminderSchema>;
+
+export type StylistSchedule = typeof stylistSchedules.$inferSelect;
+export type InsertStylistSchedule = z.infer<typeof insertStylistScheduleSchema>;
+
+export type StylistWeeklyTemplate = typeof stylistWeeklyTemplate.$inferSelect;
+export type InsertStylistWeeklyTemplate = z.infer<typeof insertStylistWeeklyTemplateSchema>;
 
 // Extended types with relations
 export type AppointmentWithDetails = Appointment & {

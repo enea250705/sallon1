@@ -12,6 +12,7 @@ import Dashboard from "@/pages/dashboard";
 import Calendar from "@/pages/calendar";
 import Services from "@/pages/services";
 import Stylists from "@/pages/stylists";
+import StylistSchedules from "@/pages/stylist-schedules";
 import Clients from "@/pages/clients";
 import Settings from "@/pages/settings";
 import RecurringReminders from "@/pages/recurring-reminders";
@@ -36,6 +37,7 @@ function Router() {
       <Route path="/clients" component={isAuthenticated ? Clients : Login} />
       <Route path="/services" component={isAuthenticated ? Services : Login} />
       <Route path="/stylists" component={isAuthenticated ? Stylists : Login} />
+      <Route path="/stylist-schedules" component={isAuthenticated ? StylistSchedules : Login} />
       <Route path="/recurring-reminders" component={isAuthenticated ? RecurringReminders : Login} />
       <Route path="/settings" component={isAuthenticated ? Settings : Login} />
       <Route component={NotFound} />

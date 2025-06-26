@@ -180,40 +180,36 @@ export default function Calendar() {
     queryKey: ["/api/clients"],
   });
 
-  // Fetch opening hours for calendar time slots
-  const { data: openingHours, refetch: refetchHours } = useQuery({
-    queryKey: ["/api/settings/hours"],
+  // Fetch opening hours
+  const { data: openingHours } = useQuery({
+    queryKey: ["/api/salon-settings"],
+  });
+
+  // Fetch stylist availability for the selected date
+  const { data: stylistsAvailability, isLoading: isLoadingAvailability } = useQuery({
+    queryKey: ["/api/stylists/availability", format(selectedDate, "yyyy-MM-dd")],
     queryFn: async () => {
-      try {
-        const response = await fetch("/api/settings/hours");
-        if (response.ok) {
-          return response.json();
+      const dateString = format(selectedDate, "yyyy-MM-dd");
+      const promises = (stylists || []).map(async (stylist: any) => {
+        try {
+          const response = await apiRequest("GET", `/api/stylists/${stylist.id}/availability?date=${dateString}`);
+          return {
+            stylistId: stylist.id,
+            availableSlots: response.slots || [],
+            date: dateString
+          };
+        } catch (error) {
+          console.error(`Error fetching availability for stylist ${stylist.id}:`, error);
+          return {
+            stylistId: stylist.id,
+            availableSlots: [],
+            date: dateString
+          };
         }
-        // Return default weekly hours on error
-        return {
-          monday: { openTime: "08:00", closeTime: "20:00", isOpen: true },
-          tuesday: { openTime: "08:00", closeTime: "20:00", isOpen: true },
-          wednesday: { openTime: "08:00", closeTime: "20:00", isOpen: true },
-          thursday: { openTime: "08:00", closeTime: "20:00", isOpen: true },
-          friday: { openTime: "08:00", closeTime: "20:00", isOpen: true },
-          saturday: { openTime: "09:00", closeTime: "18:00", isOpen: true },
-          sunday: { openTime: "10:00", closeTime: "16:00", isOpen: false }
-        };
-      } catch (error) {
-        return {
-          monday: { openTime: "08:00", closeTime: "20:00", isOpen: true },
-          tuesday: { openTime: "08:00", closeTime: "20:00", isOpen: true },
-          wednesday: { openTime: "08:00", closeTime: "20:00", isOpen: true },
-          thursday: { openTime: "08:00", closeTime: "20:00", isOpen: true },
-          friday: { openTime: "08:00", closeTime: "20:00", isOpen: true },
-          saturday: { openTime: "09:00", closeTime: "18:00", isOpen: true },
-          sunday: { openTime: "10:00", closeTime: "16:00", isOpen: false }
-        };
-      }
+      });
+      return Promise.all(promises);
     },
-    staleTime: 0, // Always fetch fresh data
-    refetchOnWindowFocus: true, // Refetch when window gets focus
-    refetchInterval: 5000, // Refetch every 5 seconds
+    enabled: !!stylists && stylists.length > 0,
   });
 
   // Force refresh hours when user navigates to calendar
@@ -757,6 +753,61 @@ export default function Calendar() {
       // Check if the current timeIndex falls within this appointment's range
       return timeIndex >= startPosition && timeIndex <= endPosition;
     });
+  };
+
+  // Helper function to check if stylist is available at specific time
+  const isStylistAvailable = (stylistId: number, timeSlot: string) => {
+    if (!stylistsAvailability) return true; // Default to available if data not loaded
+    
+    const stylistAvailability = stylistsAvailability.find(sa => sa.stylistId === stylistId);
+    if (!stylistAvailability) return true; // Default to available if no specific data
+    
+    return stylistAvailability.availableSlots.includes(timeSlot);
+  };
+
+  // Helper function to check if stylist is on break at specific time
+  const isStylistOnBreak = (stylistId: number, timeSlot: string) => {
+    // This would be determined by checking if the time slot is missing from available slots
+    // but the stylist is generally working (has other available slots around this time)
+    if (!stylistsAvailability) return false;
+    
+    const stylistAvailability = stylistsAvailability.find(sa => sa.stylistId === stylistId);
+    if (!stylistAvailability) return false;
+    
+    // If the stylist has no available slots at all, they're unavailable, not on break
+    if (stylistAvailability.availableSlots.length === 0) return false;
+    
+    // Check if this specific time slot is missing but there are slots before/after
+    const isThisSlotMissing = !stylistAvailability.availableSlots.includes(timeSlot);
+    
+    if (!isThisSlotMissing) return false;
+    
+    // Check if there are available slots around this time (indicating it's a break, not unavailable day)
+    const [timeHour, timeMinute] = timeSlot.split(':').map(Number);
+    const timeMinutes = timeHour * 60 + timeMinute;
+    
+    const hasSlotsBefore = stylistAvailability.availableSlots.some(slot => {
+      const [slotHour, slotMinute] = slot.split(':').map(Number);
+      const slotMinutes = slotHour * 60 + slotMinute;
+      return slotMinutes < timeMinutes && Math.abs(slotMinutes - timeMinutes) <= 120; // Within 2 hours
+    });
+    
+    const hasSlotsAfter = stylistAvailability.availableSlots.some(slot => {
+      const [slotHour, slotMinute] = slot.split(':').map(Number);
+      const slotMinutes = slotHour * 60 + slotMinute;
+      return slotMinutes > timeMinutes && Math.abs(slotMinutes - timeMinutes) <= 120; // Within 2 hours
+    });
+    
+    return hasSlotsBefore || hasSlotsAfter;
+  };
+
+  // Helper function to determine break type based on time
+  const getBreakType = (timeSlot: string) => {
+    const [hour] = timeSlot.split(':').map(Number);
+    if (hour >= 12 && hour < 14) {
+      return 'lunch';
+    }
+    return 'break';
   };
 
   // Function to handle appointment click - opens edit directly
@@ -1745,6 +1796,9 @@ export default function Calendar() {
                             });
                             
                             const isOccupied = appointmentAtStart !== undefined || isTimeSlotOccupied(stylist.id, timeIndex, dayAppointments);
+                            const isAvailable = isStylistAvailable(stylist.id, time);
+                            const isOnBreak = isStylistOnBreak(stylist.id, time);
+                            const breakType = getBreakType(time);
                             
                             return (
                               <div key={time} className="flex">
@@ -1757,6 +1811,9 @@ export default function Calendar() {
                                   time={time}
                                   stylistId={stylist.id}
                                   isOccupied={isOccupied}
+                                  isBreakTime={isOnBreak}
+                                  isUnavailable={!isAvailable && !isOnBreak}
+                                  breakType={breakType}
                                   onEmptyClick={() => handleEmptyCellClick(stylist.id, time)}
                                   hasPendingPaste={!!clipboardAppointment}
                                 >
@@ -1823,6 +1880,9 @@ export default function Calendar() {
                           
                           // Check if this cell is occupied by an appointment starting here or extending from previous slots
                           const isOccupied = appointmentAtStart !== undefined || isTimeSlotOccupied(stylist.id, timeIndex, dayAppointments);
+                          const isAvailable = isStylistAvailable(stylist.id, time);
+                          const isOnBreak = isStylistOnBreak(stylist.id, time);
+                          const breakType = getBreakType(time);
                           
                           return (
                             <div
@@ -1833,6 +1893,9 @@ export default function Calendar() {
                                 time={time}
                                 stylistId={stylist.id}
                                 isOccupied={isOccupied}
+                                isBreakTime={isOnBreak}
+                                isUnavailable={!isAvailable && !isOnBreak}
+                                breakType={breakType}
                                 onEmptyClick={() => handleEmptyCellClick(stylist.id, time)}
                                 hasPendingPaste={!!clipboardAppointment}
                               >

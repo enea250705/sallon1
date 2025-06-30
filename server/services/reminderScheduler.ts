@@ -84,7 +84,7 @@ export class ReminderScheduler {
           if (reminderSent) {
             // Mark reminder as sent for ALL appointments of this client
             for (const appointment of clientAppointments) {
-              await storage.markReminderSent(appointment.id);
+            await storage.markReminderSent(appointment.id);
             }
             successCount++;
             console.log(`✅ Reminder sent to ${client.firstName} for ${clientAppointments.length} appointment(s)`);

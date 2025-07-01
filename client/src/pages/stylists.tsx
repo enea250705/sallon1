@@ -9,9 +9,10 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, UserCog, Phone, Mail, Edit, Trash2 } from "lucide-react";
+import { Plus, UserCog, Phone, Mail, Edit, Trash2, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { Link } from "wouter";
 
 const stylistSchema = z.object({
   name: z.string().min(1, "Nome è richiesto"),
@@ -132,7 +133,18 @@ export default function Stylists() {
             <p className="text-gray-600">Gestisci il personale del salone</p>
           </div>
           
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <div className="flex items-center space-x-3">
+            <Link href="/stylist-hours">
+              <Button 
+                variant="outline"
+                className="border-blue-200 text-blue-600 hover:bg-blue-50 flex items-center gap-2"
+              >
+                <Clock className="h-4 w-4" />
+                Gestisci Orari
+              </Button>
+            </Link>
+            
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button 
                 className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700"
@@ -145,6 +157,7 @@ export default function Stylists() {
                 Nuovo Membro
               </Button>
             </DialogTrigger>
+          </div>
             <DialogContent className="max-w-[95vw] sm:max-w-md w-full mx-2 sm:mx-4">
               <DialogHeader>
                 <DialogTitle>
@@ -242,6 +255,16 @@ export default function Stylists() {
                         </div>
                       </div>
                       <div className="flex items-center space-x-1">
+                        <Link href="/stylist-hours">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-blue-600 hover:text-blue-700"
+                            title="Gestisci orari di lavoro"
+                          >
+                            <Clock className="h-4 w-4" />
+                          </Button>
+                        </Link>
                         <Button
                           variant="ghost"
                           size="icon"

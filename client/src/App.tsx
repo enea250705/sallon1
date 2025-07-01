@@ -15,6 +15,7 @@ import Stylists from "@/pages/stylists";
 import Clients from "@/pages/clients";
 import Settings from "@/pages/settings";
 import RecurringReminders from "@/pages/recurring-reminders";
+import StylistHours from "@/pages/stylist-hours";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -36,6 +37,7 @@ function Router() {
       <Route path="/clients" component={isAuthenticated ? Clients : Login} />
       <Route path="/services" component={isAuthenticated ? Services : Login} />
       <Route path="/stylists" component={isAuthenticated ? Stylists : Login} />
+      <Route path="/stylist-hours" component={isAuthenticated ? StylistHours : Login} />
       <Route path="/recurring-reminders" component={isAuthenticated ? RecurringReminders : Login} />
       <Route path="/settings" component={isAuthenticated ? Settings : Login} />
       <Route component={NotFound} />

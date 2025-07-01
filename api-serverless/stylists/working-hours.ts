@@ -24,7 +24,12 @@ async function handler(req: any, res: any) {
         });
       }
 
-      const workingHours = await storage.createStylistWorkingHours(validation.data);
+      // Use upsert to handle both create and update
+      const workingHours = await storage.upsertStylistWorkingHours(
+        validation.data.stylistId,
+        validation.data.dayOfWeek,
+        validation.data
+      );
       return res.status(201).json(workingHours);
     }
 

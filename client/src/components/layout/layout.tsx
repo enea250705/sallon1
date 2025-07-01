@@ -11,7 +11,8 @@ import {
   LogOut,
   Menu,
   X,
-  Bell
+  Bell,
+  Clock
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -22,6 +23,7 @@ const navigation = [
   { name: "Clienti", href: "/clients", icon: Users },
   { name: "Servizi", href: "/services", icon: Scissors },
   { name: "Stilisti", href: "/stylists", icon: UserCog },
+  { name: "Orari di Lavoro", href: "/stylist-hours", icon: Clock },
   { name: "Promemoria", href: "/recurring-reminders", icon: Bell },
   { name: "Impostazioni", href: "/settings", icon: Settings },
 ];

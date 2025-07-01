@@ -1,9 +1,10 @@
 import { 
-  users, clients, services, stylists, appointments, messageTemplates, salonSettings,
+  users, clients, services, stylists, appointments, messageTemplates, salonSettings, stylistWorkingHours,
   type User, type InsertUser, type Client, type InsertClient,
   type Service, type InsertService, type Stylist, type InsertStylist,
   type Appointment, type InsertAppointment, type AppointmentWithDetails,
-  type MessageTemplate, type InsertMessageTemplate, type SalonSetting, type InsertSalonSetting
+  type MessageTemplate, type InsertMessageTemplate, type SalonSetting, type InsertSalonSetting,
+  type StylistWorkingHours, type InsertStylistWorkingHours
 } from "../../shared/schema";
 import { db } from "./db";
 import { eq, like, and, gte, lte, desc, sql } from "drizzle-orm";
@@ -149,6 +150,87 @@ export class ServerlessStorage {
   async deleteStylist(id: number): Promise<boolean> {
     const result = await db().delete(stylists).where(eq(stylists.id, id));
     return result.rowCount > 0;
+  }
+
+  // Stylist working hours management
+  async createStylistWorkingHours(workingHoursData: InsertStylistWorkingHours): Promise<StylistWorkingHours> {
+    const [workingHours] = await db()
+      .insert(stylistWorkingHours)
+      .values(workingHoursData)
+      .returning();
+    return workingHours;
+  }
+
+  async getStylistWorkingHours(stylistId: number): Promise<StylistWorkingHours[]> {
+    return await db()
+      .select()
+      .from(stylistWorkingHours)
+      .where(eq(stylistWorkingHours.stylistId, stylistId))
+      .orderBy(stylistWorkingHours.dayOfWeek);
+  }
+
+  async getStylistWorkingHoursByDay(stylistId: number, dayOfWeek: number): Promise<StylistWorkingHours | undefined> {
+    const [workingHours] = await db()
+      .select()
+      .from(stylistWorkingHours)
+      .where(and(
+        eq(stylistWorkingHours.stylistId, stylistId),
+        eq(stylistWorkingHours.dayOfWeek, dayOfWeek)
+      ));
+    return workingHours || undefined;
+  }
+
+  async updateStylistWorkingHours(id: number, workingHoursData: Partial<InsertStylistWorkingHours>): Promise<StylistWorkingHours | undefined> {
+    const [workingHours] = await db()
+      .update(stylistWorkingHours)
+      .set({ ...workingHoursData, updatedAt: new Date() })
+      .where(eq(stylistWorkingHours.id, id))
+      .returning();
+    return workingHours || undefined;
+  }
+
+  async deleteStylistWorkingHours(id: number): Promise<boolean> {
+    const result = await db().delete(stylistWorkingHours).where(eq(stylistWorkingHours.id, id));
+    return result.rowCount > 0;
+  }
+
+  async upsertStylistWorkingHours(stylistId: number, dayOfWeek: number, workingHoursData: Partial<InsertStylistWorkingHours>): Promise<StylistWorkingHours> {
+    // Check if working hours already exist for this stylist and day
+    const existing = await this.getStylistWorkingHoursByDay(stylistId, dayOfWeek);
+    
+    if (existing) {
+      // Update existing record
+      const updated = await this.updateStylistWorkingHours(existing.id, workingHoursData);
+      return updated!;
+    } else {
+      // Create new record
+      return await this.createStylistWorkingHours({
+        stylistId,
+        dayOfWeek,
+        ...workingHoursData
+      } as InsertStylistWorkingHours);
+    }
+  }
+
+  // Check if stylist is working at a specific time
+  async isStylistWorking(stylistId: number, dayOfWeek: number, time: string): Promise<boolean> {
+    const workingHours = await this.getStylistWorkingHoursByDay(stylistId, dayOfWeek);
+    
+    if (!workingHours || !workingHours.isWorking) {
+      return false;
+    }
+
+    // Convert time to minutes for comparison
+    const [hour, minute] = time.split(':').map(Number);
+    const timeMinutes = hour * 60 + minute;
+
+    const [startHour, startMinute] = workingHours.startTime.split(':').map(Number);
+    const startMinutes = startHour * 60 + startMinute;
+
+    const [endHour, endMinute] = workingHours.endTime.split(':').map(Number);
+    const endMinutes = endHour * 60 + endMinute;
+
+    return timeMinutes >= startMinutes && timeMinutes < endMinutes;
   }
 
   // Appointment management

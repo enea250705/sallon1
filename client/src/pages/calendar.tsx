@@ -108,9 +108,6 @@ export default function Calendar() {
       }
       return response.json();
     },
-    staleTime: 0,
-    refetchOnWindowFocus: true,
-    refetchOnMount: true,
   });
 
   // Fetch suggested appointments from recurring reminders
@@ -132,9 +129,6 @@ export default function Calendar() {
       }
       return response.json();
     },
-    staleTime: 0,
-    refetchOnWindowFocus: true,
-    refetchOnMount: true,
   });
 
   // Force refetch when viewMode or selectedDate changes
@@ -156,6 +150,33 @@ export default function Calendar() {
 
   const { data: services } = useQuery<any[]>({
     queryKey: ["/api/services"],
+  });
+
+  // Fetch working hours for all stylists
+  const { data: stylistWorkingHours } = useQuery<{ [key: number]: any[] }>({
+    queryKey: ["/api/stylists/working-hours", stylists?.map(s => s.id)],
+    queryFn: async () => {
+      if (!stylists || stylists.length === 0) return {};
+      
+      const workingHoursMap: { [key: number]: any[] } = {};
+      
+      for (const stylist of stylists) {
+        try {
+          const response = await fetch(`/api/stylists/working-hours?stylistId=${stylist.id}`);
+          if (response.ok) {
+            workingHoursMap[stylist.id] = await response.json();
+          } else {
+            workingHoursMap[stylist.id] = [];
+          }
+        } catch (error) {
+          console.error(`Error fetching working hours for stylist ${stylist.id}:`, error);
+          workingHoursMap[stylist.id] = [];
+        }
+      }
+      
+      return workingHoursMap;
+    },
+    enabled: !!stylists && stylists.length > 0,
   });
 
   // Track the last service ID to prevent duration reset on re-renders
@@ -756,6 +777,33 @@ export default function Calendar() {
     });
   };
 
+  // Helper function to check if a stylist is working at a specific time
+  const isStylistWorkingAtTime = (stylistId: number, time: string): boolean => {
+    if (!stylistWorkingHours || !stylistWorkingHours[stylistId]) {
+      return true; // Default to working if no hours are set
+    }
+
+    const dayOfWeek = selectedDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
+    const workingHours = stylistWorkingHours[stylistId];
+    const dayHours = workingHours.find(wh => wh.dayOfWeek === dayOfWeek);
+
+    if (!dayHours || !dayHours.isWorking) {
+      return false; // Not working this day
+    }
+
+    // Convert time to minutes for comparison
+    const [hour, minute] = time.split(':').map(Number);
+    const timeMinutes = hour * 60 + minute;
+
+    const [startHour, startMinute] = dayHours.startTime.split(':').map(Number);
+    const startMinutes = startHour * 60 + startMinute;
+
+    const [endHour, endMinute] = dayHours.endTime.split(':').map(Number);
+    const endMinutes = endHour * 60 + endMinute;
+
+    return timeMinutes >= startMinutes && timeMinutes < endMinutes;
+  };
+
   // Function to handle appointment click - opens edit directly
   const handleAppointmentClick = (appointment: any) => {
     handleEditAppointment(appointment);
@@ -848,6 +896,17 @@ export default function Calendar() {
 
   // Function to handle empty cell click for new appointment
   const handleEmptyCellClick = (stylistId: number, timeSlot: string) => {
+    // Check if stylist is working at this time
+    const isWorking = isStylistWorkingAtTime(stylistId, timeSlot);
+    if (!isWorking) {
+      toast({
+        title: "Dipendente non disponibile",
+        description: "Il dipendente non lavora in questo orario",
+        variant: "destructive"
+      });
+      return;
+    }
+
     // If there's something in clipboard, paste it
     if (clipboardAppointment) {
       pasteAppointment(format(selectedDate, "yyyy-MM-dd"), stylistId, timeSlot);
@@ -1588,18 +1647,6 @@ export default function Calendar() {
                   <Button 
                     variant="outline" 
                     size="sm" 
-                    onClick={() => {
-                      refetchAppointments();
-                      refetchSuggested();
-                      toast({ title: "Aggiornamento appuntamenti..." });
-                    }}
-                    className="text-green-600 border-green-200 hover:bg-green-50 h-8 px-3 text-xs"
-                  >
-                    🔄 Refresh
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
                     onClick={() => triggerRemindersMutation.mutate()}
                     disabled={triggerRemindersMutation.isPending}
                     className="text-blue-600 border-blue-200 hover:bg-blue-50 h-8 px-3 text-xs"
@@ -1613,18 +1660,6 @@ export default function Calendar() {
             {/* Desktop/Tablet Header */}
             <div className="hidden sm:flex items-center justify-between flex-wrap gap-4">
               <div className="flex items-center space-x-4">
-                <Button 
-                  variant="outline" 
-                  onClick={() => {
-                    refetchAppointments();
-                    refetchSuggested();
-                    toast({ title: "Aggiornamento appuntamenti..." });
-                  }}
-                  className="text-green-600 border-green-200 hover:bg-green-50"
-                  title="Aggiorna appuntamenti"
-                >
-                  🔄
-                </Button>
                 <Button variant="outline" onClick={navigatePrevious} className="h-10 w-10 p-0">
                   <ChevronLeft className="h-5 w-5" />
                 </Button>
@@ -1766,6 +1801,7 @@ export default function Calendar() {
                             });
                             
                             const isOccupied = appointmentAtStart !== undefined || isTimeSlotOccupied(stylist.id, timeIndex, dayAppointments);
+                            const isStylistWorking = isStylistWorkingAtTime(stylist.id, time);
                             
                             return (
                               <div key={time} className="flex">
@@ -1781,7 +1817,7 @@ export default function Calendar() {
                                   onEmptyClick={() => handleEmptyCellClick(stylist.id, time)}
                                   hasPendingPaste={!!clipboardAppointment}
                                 >
-                                  <div className="flex-1 min-h-[60px] relative overflow-visible">
+                                  <div className={`flex-1 min-h-[60px] relative overflow-visible ${!isStylistWorking ? 'bg-gray-400 bg-opacity-70' : ''}`}>
                                   {appointmentAtStart && (
                                       <DraggableDailyAppointment
                                         appointment={appointmentAtStart}
@@ -1841,11 +1877,12 @@ export default function Calendar() {
                           
                           // Check if this cell is occupied by an appointment starting here or extending from previous slots
                           const isOccupied = appointmentAtStart !== undefined || isTimeSlotOccupied(stylist.id, timeIndex, dayAppointments);
+                          const isStylistWorking = isStylistWorkingAtTime(stylist.id, time);
                           
                           return (
                             <div
                               key={stylist.id}
-                              className="relative border-r border-gray-300"
+                              className={`relative border-r border-gray-300 ${!isStylistWorking ? 'bg-gray-400 bg-opacity-70' : ''}`}
                             >
                               <DroppableTimeSlot
                                 time={time}

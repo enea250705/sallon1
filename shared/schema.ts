@@ -62,6 +62,18 @@ export const stylists = pgTable("stylists", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Stylist working hours table
+export const stylistWorkingHours = pgTable("stylist_working_hours", {
+  id: serial("id").primaryKey(),
+  stylistId: integer("stylist_id").references(() => stylists.id).notNull(),
+  dayOfWeek: integer("day_of_week").notNull(), // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+  startTime: time("start_time").notNull(),
+  endTime: time("end_time").notNull(),
+  isWorking: boolean("is_working").default(true), // false = day off
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Appointments table
 export const appointments = pgTable("appointments", {
   id: serial("id").primaryKey(),
@@ -138,6 +150,12 @@ export const insertStylistSchema = createInsertSchema(stylists).omit({
   createdAt: true,
 });
 
+export const insertStylistWorkingHoursSchema = createInsertSchema(stylistWorkingHours).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertAppointmentSchema = createInsertSchema(appointments).omit({
   id: true,
   createdAt: true,
@@ -170,6 +188,9 @@ export type InsertService = z.infer<typeof insertServiceSchema>;
 
 export type Stylist = typeof stylists.$inferSelect;
 export type InsertStylist = z.infer<typeof insertStylistSchema>;
+
+export type StylistWorkingHours = typeof stylistWorkingHours.$inferSelect;
+export type InsertStylistWorkingHours = z.infer<typeof insertStylistWorkingHoursSchema>;
 
 export type Appointment = typeof appointments.$inferSelect;
 export type InsertAppointment = z.infer<typeof insertAppointmentSchema>;

@@ -159,8 +159,23 @@ export default function Calendar() {
   useEffect(() => {
     if (selectedServiceId && services && selectedServiceId !== lastServiceId) {
       const selectedService = services.find(s => s.id === selectedServiceId);
+      console.log('Service selection change:', {
+        selectedServiceId,
+        selectedService,
+        lastServiceId,
+        serviceDuration: selectedService?.duration
+      });
+      
       if (selectedService && selectedService.duration) {
-        setMainServiceDuration(`${selectedService.duration}m`);
+        const newDuration = `${selectedService.duration}m`;
+        console.log('Setting main service duration:', newDuration);
+        setMainServiceDuration(newDuration);
+        setManualDurationOverride(false);
+        setLastServiceId(selectedServiceId);
+      } else if (selectedService) {
+        // If service exists but no duration specified, use default 30 minutes
+        console.log('Service found but no duration, using default 30m');
+        setMainServiceDuration("30m");
         setManualDurationOverride(false);
         setLastServiceId(selectedServiceId);
       }
@@ -242,10 +257,26 @@ export default function Calendar() {
       // Get duration from manual override or service default
       const durationMinutes = parseInt((mainServiceDuration || '30m').replace('m', '')) || 30;
       
+      console.log('Creating appointment - time calculation:', {
+        startHour: data.startHour,
+        startMinute: data.startMinute,
+        startTime,
+        startTimeMinutes,
+        mainServiceDuration,
+        durationMinutes
+      });
+      
       const endTimeMinutes = startTimeMinutes + durationMinutes;
       const endHours = Math.floor(endTimeMinutes / 60);
       const endMins = endTimeMinutes % 60;
       const endTime = `${endHours.toString().padStart(2, '0')}:${endMins.toString().padStart(2, '0')}`;
+      
+      console.log('Calculated end time:', {
+        endTimeMinutes,
+        endHours,
+        endMins,
+        endTime
+      });
 
       // Create the appointment with the client
       return apiRequest("POST", "/api/appointments", {
@@ -381,10 +412,26 @@ export default function Calendar() {
     // Get duration from manual override or service
     const durationMinutes = parseInt((mainServiceDuration || '30m').replace('m', '')) || 30;
     
+    console.log('Updating appointment - time calculation:', {
+      startHour: data.startHour,
+      startMinute: data.startMinute,
+      startTime,
+      startTimeMinutes,
+      mainServiceDuration,
+      durationMinutes
+    });
+    
     const endTimeMinutes = startTimeMinutes + durationMinutes;
     const endHours = Math.floor(endTimeMinutes / 60);
     const endMins = endTimeMinutes % 60;
     const endTime = `${endHours.toString().padStart(2, '0')}:${endMins.toString().padStart(2, '0')}`;
+    
+    console.log('Updated end time:', {
+      endTimeMinutes,
+      endHours,
+      endMins,
+      endTime
+    });
 
     const updateData = {
       clientId: data.clientId || editingAppointment.clientId,
@@ -722,16 +769,36 @@ export default function Calendar() {
 
   // Helper function to get appointment height based on duration
   const getAppointmentHeight = (startTime: string, endTime: string) => {
+    if (!startTime || !endTime) {
+      console.warn('getAppointmentHeight: Invalid time values', { startTime, endTime });
+      return 1;
+    }
+    
     const [startHours, startMinutes] = startTime.split(':').map(Number);
     const [endHours, endMinutes] = endTime.split(':').map(Number);
+    
+    if (isNaN(startHours) || isNaN(startMinutes) || isNaN(endHours) || isNaN(endMinutes)) {
+      console.warn('getAppointmentHeight: Invalid time parsing', { startTime, endTime });
+      return 1;
+    }
     
     const startTotalMinutes = startHours * 60 + startMinutes;
     const endTotalMinutes = endHours * 60 + endMinutes;
     
     const durationMinutes = endTotalMinutes - startTotalMinutes;
     
+    console.log('getAppointmentHeight calculation:', {
+      startTime,
+      endTime,
+      startTotalMinutes,
+      endTotalMinutes,
+      durationMinutes,
+      slots: Math.max(1, Math.round(durationMinutes / 15))
+    });
+    
     // Each time slot is 15 minutes, so calculate how many slots the appointment spans
-    return Math.max(1, Math.ceil(durationMinutes / 15));
+    // Changed from Math.ceil to Math.round for more accurate slot calculation
+    return Math.max(1, Math.round(durationMinutes / 15));
   };
 
   // Helper function to check if a time slot is occupied by any appointment (starting or extending)

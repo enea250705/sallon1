@@ -72,6 +72,11 @@ export function DraggableDailyAppointment({
   const combinedStyle = {
     ...style,
     height: `${height * slotHeight - 2}px`, // Dynamic height based on device and 15-minute slots
+    position: 'absolute' as const,
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
   };
 
   // Calculate if duration was modified

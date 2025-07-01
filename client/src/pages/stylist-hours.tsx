@@ -15,6 +15,8 @@ interface WorkingHours {
   dayOfWeek: number;
   startTime: string;
   endTime: string;
+  breakStartTime: string | null;
+  breakEndTime: string | null;
   isWorking: boolean;
 }
 
@@ -74,10 +76,12 @@ export default function StylistHours() {
         const existing = currentWorkingHours.find(wh => wh.dayOfWeek === day.id);
         hoursMap[day.id] = existing || {
           stylistId: selectedStylist,
-          dayOfWeek: day.id,
-          startTime: "08:00",
-          endTime: "17:00",
-          isWorking: day.id !== 0, // Default: work Monday-Saturday, off Sunday
+                     dayOfWeek: day.id,
+           startTime: "08:00",
+           endTime: "17:00",
+           breakStartTime: "13:00",
+           breakEndTime: "14:00",
+           isWorking: day.id !== 0, // Default: work Monday-Saturday, off Sunday
         };
       });
       
@@ -254,51 +258,111 @@ export default function StylistHours() {
                       </div>
 
                       {hours.isWorking && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                              Orario di Inizio
-                            </label>
-                            <Select
-                              value={hours.startTime}
-                              onValueChange={(value) => 
-                                updateWorkingHours(day.id, "startTime", value)
-                              }
-                            >
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {TIME_OPTIONS.map((time) => (
-                                  <SelectItem key={time} value={time}>
-                                    {time}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                        <div className="space-y-6">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Orario di Inizio
+                              </label>
+                              <Select
+                                value={hours.startTime}
+                                onValueChange={(value) => 
+                                  updateWorkingHours(day.id, "startTime", value)
+                                }
+                              >
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {TIME_OPTIONS.map((time) => (
+                                    <SelectItem key={time} value={time}>
+                                      {time}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Orario di Fine
+                              </label>
+                              <Select
+                                value={hours.endTime}
+                                onValueChange={(value) => 
+                                  updateWorkingHours(day.id, "endTime", value)
+                                }
+                              >
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {TIME_OPTIONS.map((time) => (
+                                    <SelectItem key={time} value={time}>
+                                      {time}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
                           </div>
 
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                              Orario di Fine
-                            </label>
-                            <Select
-                              value={hours.endTime}
-                              onValueChange={(value) => 
-                                updateWorkingHours(day.id, "endTime", value)
-                              }
-                            >
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {TIME_OPTIONS.map((time) => (
-                                  <SelectItem key={time} value={time}>
-                                    {time}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                          <div className="border-t pt-4">
+                            <h4 className="text-sm font-medium text-gray-900 mb-4">Pausa Pranzo</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                  Inizio Pausa
+                                </label>
+                                <Select
+                                  value={hours.breakStartTime || ""}
+                                  onValueChange={(value) => 
+                                    updateWorkingHours(day.id, "breakStartTime", value || null)
+                                  }
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Nessuna pausa" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="">Nessuna pausa</SelectItem>
+                                    {TIME_OPTIONS.map((time) => (
+                                      <SelectItem key={time} value={time}>
+                                        {time}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                  Fine Pausa
+                                </label>
+                                <Select
+                                  value={hours.breakEndTime || ""}
+                                  onValueChange={(value) => 
+                                    updateWorkingHours(day.id, "breakEndTime", value || null)
+                                  }
+                                  disabled={!hours.breakStartTime}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Nessuna pausa" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="">Nessuna pausa</SelectItem>
+                                    {TIME_OPTIONS.map((time) => (
+                                      <SelectItem 
+                                        key={time} 
+                                        value={time}
+                                        disabled={hours.breakStartTime && time <= hours.breakStartTime}
+                                      >
+                                        {time}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
                           </div>
                         </div>
                       )}
@@ -328,10 +392,12 @@ export default function StylistHours() {
                   DAYS.forEach(day => {
                     fullTimeHours[day.id] = {
                       stylistId: selectedStylist,
-                      dayOfWeek: day.id,
-                      startTime: day.id === 6 ? "09:00" : "08:00", // Saturday 9-17, others 8-18
-                      endTime: day.id === 6 ? "17:00" : "18:00",
-                      isWorking: day.id !== 0, // Work Monday-Saturday
+                                             dayOfWeek: day.id,
+                       startTime: day.id === 6 ? "09:00" : "08:00", // Saturday 9-17, others 8-18
+                       endTime: day.id === 6 ? "17:00" : "18:00",
+                       breakStartTime: "13:00",
+                       breakEndTime: "14:00",
+                       isWorking: day.id !== 0, // Work Monday-Saturday
                     };
                   });
                   setWorkingHours(fullTimeHours);
@@ -351,10 +417,12 @@ export default function StylistHours() {
                   DAYS.forEach(day => {
                     partTimeHours[day.id] = {
                       stylistId: selectedStylist,
-                      dayOfWeek: day.id,
-                      startTime: "10:00",
-                      endTime: "16:00",
-                      isWorking: day.id >= 2 && day.id <= 5, // Work Tuesday-Friday
+                                             dayOfWeek: day.id,
+                       startTime: "10:00",
+                       endTime: "16:00",
+                       breakStartTime: "13:00",
+                       breakEndTime: "13:30",
+                       isWorking: day.id >= 2 && day.id <= 5, // Work Tuesday-Friday
                     };
                   });
                   setWorkingHours(partTimeHours);
@@ -374,10 +442,12 @@ export default function StylistHours() {
                   DAYS.forEach(day => {
                     weekendHours[day.id] = {
                       stylistId: selectedStylist,
-                      dayOfWeek: day.id,
-                      startTime: "09:00",
-                      endTime: "17:00",
-                      isWorking: day.id === 6 || day.id === 0, // Work only weekends
+                                             dayOfWeek: day.id,
+                       startTime: "09:00",
+                       endTime: "17:00",
+                       breakStartTime: "13:00",
+                       breakEndTime: "14:00",
+                       isWorking: day.id === 6 || day.id === 0, // Work only weekends
                     };
                   });
                   setWorkingHours(weekendHours);

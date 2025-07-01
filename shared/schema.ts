@@ -69,6 +69,8 @@ export const stylistWorkingHours = pgTable("stylist_working_hours", {
   dayOfWeek: integer("day_of_week").notNull(), // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
   startTime: time("start_time").notNull(),
   endTime: time("end_time").notNull(),
+  breakStartTime: time("break_start_time"), // Optional break start time
+  breakEndTime: time("break_end_time"), // Optional break end time
   isWorking: boolean("is_working").default(true), // false = day off
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

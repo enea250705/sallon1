@@ -59,11 +59,11 @@ export function DraggableDailyAppointment({
     const isTablet = windowWidth > 768 && windowWidth <= 1024;
     
     if (isMobile) {
-      return 25; // Smaller slots for mobile
+      return 60; // 60px slots for mobile to match grid height
     } else if (isTablet) {
-      return 28; // Medium slots for tablets like iPad
+      return 60; // 60px slots for tablets to match grid height
     } else {
-      return 30; // Standard 30px slots for desktop (15-minute slots)
+      return 60; // 60px slots for desktop (15-minute slots) to match grid height
     }
   };
 

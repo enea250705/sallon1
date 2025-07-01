@@ -108,6 +108,9 @@ export default function Calendar() {
       }
       return response.json();
     },
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
   });
 
   // Fetch suggested appointments from recurring reminders
@@ -129,6 +132,9 @@ export default function Calendar() {
       }
       return response.json();
     },
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
   });
 
   // Force refetch when viewMode or selectedDate changes
@@ -1582,6 +1588,18 @@ export default function Calendar() {
                   <Button 
                     variant="outline" 
                     size="sm" 
+                    onClick={() => {
+                      refetchAppointments();
+                      refetchSuggested();
+                      toast({ title: "Aggiornamento appuntamenti..." });
+                    }}
+                    className="text-green-600 border-green-200 hover:bg-green-50 h-8 px-3 text-xs"
+                  >
+                    🔄 Refresh
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
                     onClick={() => triggerRemindersMutation.mutate()}
                     disabled={triggerRemindersMutation.isPending}
                     className="text-blue-600 border-blue-200 hover:bg-blue-50 h-8 px-3 text-xs"
@@ -1595,6 +1613,18 @@ export default function Calendar() {
             {/* Desktop/Tablet Header */}
             <div className="hidden sm:flex items-center justify-between flex-wrap gap-4">
               <div className="flex items-center space-x-4">
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    refetchAppointments();
+                    refetchSuggested();
+                    toast({ title: "Aggiornamento appuntamenti..." });
+                  }}
+                  className="text-green-600 border-green-200 hover:bg-green-50"
+                  title="Aggiorna appuntamenti"
+                >
+                  🔄
+                </Button>
                 <Button variant="outline" onClick={navigatePrevious} className="h-10 w-10 p-0">
                   <ChevronLeft className="h-5 w-5" />
                 </Button>

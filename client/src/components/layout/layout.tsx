@@ -12,7 +12,9 @@ import {
   Menu,
   X,
   Bell,
-  Clock
+  Clock,
+  MapPin,
+  Store
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -24,6 +26,8 @@ const navigation = [
   { name: "Servizi", href: "/services", icon: Scissors },
   { name: "Stilisti", href: "/stylists", icon: UserCog },
   { name: "Orari di Lavoro", href: "/stylist-hours", icon: Clock },
+  { name: "Ferie Stilisti", href: "/stylist-vacations", icon: MapPin },
+  { name: "Giorni Straordinari", href: "/salon-extraordinary-days", icon: Store },
   { name: "Promemoria", href: "/recurring-reminders", icon: Bell },
   { name: "Impostazioni", href: "/settings", icon: Settings },
 ];

@@ -21,7 +21,17 @@ async function handler(req: any, res: any) {
       time
     );
 
-    return res.status(200).json({ isWorking });
+    const isOnBreak = await storage.isStylistOnBreak(
+      parseInt(stylistId), 
+      parseInt(dayOfWeek), 
+      time
+    );
+
+    return res.status(200).json({ 
+      isWorking, 
+      isOnBreak,
+      status: isOnBreak ? 'on_break' : (isWorking ? 'working' : 'not_working')
+    });
   } catch (error) {
     console.error('Check stylist working API error:', error);
     return res.status(500).json({ message: 'Internal server error' });

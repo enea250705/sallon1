@@ -32,6 +32,7 @@ const appointmentSchema = z.object({
   date: z.string().min(1, "Data è richiesta"),
   startHour: z.number({ required_error: "Ora è richiesta" }),
   startMinute: z.number({ required_error: "Minuti sono richiesti" }),
+  notes: z.string().optional(),
 }).refine((data) => {
   if (data.clientType === "new") {
     return data.clientName && data.clientName.length > 0 && data.clientPhone && data.clientPhone.length > 0;
@@ -82,6 +83,7 @@ export default function Calendar() {
       date: format(selectedDate, "yyyy-MM-dd"),
       startHour: 9,
       startMinute: 0,
+      notes: "",
     },
   });
 
@@ -153,7 +155,7 @@ export default function Calendar() {
   });
 
   // Fetch working hours for all stylists
-  const { data: stylistWorkingHours } = useQuery<{ [key: number]: any[] }>({
+  const { data: stylistWorkingHours, refetch: refetchWorkingHours } = useQuery<{ [key: number]: any[] }>({
     queryKey: ["/api/stylists/working-hours", stylists?.map(s => s.id)],
     queryFn: async () => {
       if (!stylists || stylists.length === 0) return {};
@@ -164,8 +166,10 @@ export default function Calendar() {
         try {
           const response = await fetch(`/api/stylists/working-hours?stylistId=${stylist.id}`);
           if (response.ok) {
-            workingHoursMap[stylist.id] = await response.json();
+            const hours = await response.json();
+            workingHoursMap[stylist.id] = hours;
           } else {
+            console.warn(`Failed to fetch working hours for stylist ${stylist.id}`);
             workingHoursMap[stylist.id] = [];
           }
         } catch (error) {
@@ -177,7 +181,36 @@ export default function Calendar() {
       return workingHoursMap;
     },
     enabled: !!stylists && stylists.length > 0,
+    staleTime: 0,
+    refetchOnMount: true,
   });
+
+  // Fetch stylist vacations
+  const { data: stylistVacations } = useQuery({
+    queryKey: ["/api/stylists/vacations"],
+    queryFn: async () => {
+      const response = await fetch("/api/stylists/vacations");
+      if (!response.ok) throw new Error("Failed to fetch vacations");
+      return response.json();
+    },
+  });
+
+  // Fetch salon extraordinary days
+  const { data: extraordinaryDays } = useQuery({
+    queryKey: ["/api/salon-extraordinary-days"],
+    queryFn: async () => {
+      const response = await fetch("/api/salon-extraordinary-days");
+      if (!response.ok) throw new Error("Failed to fetch extraordinary days");
+      return response.json();
+    },
+  });
+
+  // Auto-refetch working hours when stylists change
+  useEffect(() => {
+    if (stylists && stylists.length > 0) {
+      refetchWorkingHours();
+    }
+  }, [stylists, refetchWorkingHours]);
 
   // Track the last service ID to prevent duration reset on re-renders
   const [lastServiceId, setLastServiceId] = useState<number | null>(null);
@@ -215,7 +248,7 @@ export default function Calendar() {
           thursday: { openTime: "08:00", closeTime: "20:00", isOpen: true },
           friday: { openTime: "08:00", closeTime: "20:00", isOpen: true },
           saturday: { openTime: "09:00", closeTime: "18:00", isOpen: true },
-          sunday: { openTime: "10:00", closeTime: "16:00", isOpen: false }
+          sunday: { openTime: "10:00", closeTime: "16:00", isOpen: true }
         };
       } catch (error) {
         return {
@@ -225,7 +258,7 @@ export default function Calendar() {
           thursday: { openTime: "08:00", closeTime: "20:00", isOpen: true },
           friday: { openTime: "08:00", closeTime: "20:00", isOpen: true },
           saturday: { openTime: "09:00", closeTime: "18:00", isOpen: true },
-          sunday: { openTime: "10:00", closeTime: "16:00", isOpen: false }
+          sunday: { openTime: "10:00", closeTime: "16:00", isOpen: true }
         };
       }
     },
@@ -780,7 +813,7 @@ export default function Calendar() {
   // Helper function to check if a stylist is working at a specific time
   const isStylistWorkingAtTime = (stylistId: number, time: string): boolean => {
     if (!stylistWorkingHours || !stylistWorkingHours[stylistId]) {
-      return true; // Default to working if no hours are set
+      return false; // Default to not working if no hours are set
     }
 
     const dayOfWeek = selectedDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
@@ -802,6 +835,76 @@ export default function Calendar() {
     const endMinutes = endHour * 60 + endMinute;
 
     return timeMinutes >= startMinutes && timeMinutes < endMinutes;
+  };
+
+  // Helper function to check if a stylist is on break at a specific time
+  const isStylistOnBreak = (stylistId: number, time: string): boolean => {
+    if (!stylistWorkingHours || !stylistWorkingHours[stylistId]) {
+      return false; // Default to not on break if no hours are set
+    }
+
+    const dayOfWeek = selectedDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
+    const workingHours = stylistWorkingHours[stylistId];
+    const dayHours = workingHours.find(wh => wh.dayOfWeek === dayOfWeek);
+
+    if (!dayHours || !dayHours.isWorking || !dayHours.breakStartTime || !dayHours.breakEndTime) {
+      return false; // Not working this day or no break time set
+    }
+
+    // Convert time to minutes for comparison
+    const [hour, minute] = time.split(':').map(Number);
+    const timeMinutes = hour * 60 + minute;
+
+    // First check if it's within working hours
+    const [startHour, startMinute] = dayHours.startTime.split(':').map(Number);
+    const startMinutes = startHour * 60 + startMinute;
+
+    const [endHour, endMinute] = dayHours.endTime.split(':').map(Number);
+    const endMinutes = endHour * 60 + endMinute;
+
+    const isWithinWorkingHours = timeMinutes >= startMinutes && timeMinutes < endMinutes;
+    
+    if (!isWithinWorkingHours) {
+      return false; // Not even in working hours
+    }
+
+    // Check if time is during break time
+    const [breakStartHour, breakStartMinute] = dayHours.breakStartTime.split(':').map(Number);
+    const breakStartMinutes = breakStartHour * 60 + breakStartMinute;
+
+    const [breakEndHour, breakEndMinute] = dayHours.breakEndTime.split(':').map(Number);
+    const breakEndMinutes = breakEndHour * 60 + breakEndMinute;
+
+    return timeMinutes >= breakStartMinutes && timeMinutes < breakEndMinutes;
+  };
+
+  // Helper function to check if a stylist is on vacation on a specific date
+  const isStylistOnVacation = (stylistId: number, date: Date): boolean => {
+    if (!stylistVacations || stylistVacations.length === 0) {
+      return false;
+    }
+
+    const targetDate = format(date, 'yyyy-MM-dd');
+    
+    return stylistVacations.some((vacation: any) => {
+      if (!vacation.isActive || vacation.stylistId !== stylistId) {
+        return false;
+      }
+      
+      // Check if the target date falls within the vacation period
+      return vacation.startDate <= targetDate && vacation.endDate >= targetDate;
+    });
+  };
+
+  // Helper function to get salon extraordinary day for a specific date
+  const getSalonExtraordinaryDay = (date: Date) => {
+    if (!extraordinaryDays || extraordinaryDays.length === 0) {
+      return null;
+    }
+
+    const targetDate = format(date, 'yyyy-MM-dd');
+    
+    return extraordinaryDays.find((day: any) => day.date === targetDate) || null;
   };
 
   // Function to handle appointment click - opens edit directly
@@ -831,6 +934,7 @@ export default function Calendar() {
       clientId: appointment.clientId,
       clientName: `${appointment.client.firstName} ${appointment.client.lastName}`,
       clientPhone: appointment.client.phone || "",
+      notes: appointment.notes || "",
     });
 
     // Set duration based on appointment
@@ -898,10 +1002,12 @@ export default function Calendar() {
   const handleEmptyCellClick = (stylistId: number, timeSlot: string) => {
     // Check if stylist is working at this time
     const isWorking = isStylistWorkingAtTime(stylistId, timeSlot);
+    const isOnBreak = isStylistOnBreak(stylistId, timeSlot);
+    
     if (!isWorking) {
       toast({
         title: "Dipendente non disponibile",
-        description: "Il dipendente non lavora in questo orario",
+        description: isOnBreak ? "Il dipendente è in pausa" : "Il dipendente non lavora in questo orario",
         variant: "destructive"
       });
       return;
@@ -925,6 +1031,7 @@ export default function Calendar() {
       clientPhone: "",
       clientId: undefined,
       serviceId: undefined, // Set to undefined to show placeholder
+      notes: "",
     });
     // Reset additional services and durations
     setAdditionalServices([]);
@@ -1548,6 +1655,29 @@ export default function Calendar() {
                         </div>
                       </div>
 
+                      {/* Notes field */}
+                      <div className="space-y-2">
+                        <FormField
+                          control={form.control}
+                          name="notes"
+                          render={({ field }) => (
+                            <FormItem>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Note (opzionale)
+                              </label>
+                              <FormControl>
+                                <textarea 
+                                  {...field}
+                                  placeholder="Aggiungi note per questo appuntamento..."
+                                  className="w-full h-20 px-4 py-3 bg-gray-100 border-0 rounded-lg text-base placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-200 resize-none"
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+
                       {/* Hidden fields for form validation */}
                       <div className="hidden">
                   <FormField
@@ -1721,6 +1851,32 @@ export default function Calendar() {
                 >
                   {triggerRemindersMutation.isPending ? "Invio..." : "Test WhatsApp"}
                 </Button>
+                
+                {/* Color Legend - only in day view */}
+                {viewMode === 'day' && (
+                  <div className="flex items-center space-x-3 text-xs bg-gray-50 px-3 py-2 rounded-lg border">
+                    <div className="flex items-center space-x-1">
+                      <div className="w-3 h-3 bg-purple-300 rounded"></div>
+                      <span>Ferie</span>
+                    </div>
+                    <div className="flex items-center space-x-1">
+                      <div className="w-3 h-3 bg-red-300 rounded"></div>
+                      <span>Chiuso</span>
+                    </div>
+                    <div className="flex items-center space-x-1">
+                      <div className="w-3 h-3 bg-yellow-200 rounded"></div>
+                      <span>Orario Speciale</span>
+                    </div>
+                    <div className="flex items-center space-x-1">
+                      <div className="w-3 h-3 bg-orange-200 rounded"></div>
+                      <span>Pausa</span>
+                    </div>
+                    <div className="flex items-center space-x-1">
+                      <div className="w-3 h-3 bg-gray-400 rounded"></div>
+                      <span>Non Lavora</span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </CardHeader>
@@ -1802,6 +1958,25 @@ export default function Calendar() {
                             
                             const isOccupied = appointmentAtStart !== undefined || isTimeSlotOccupied(stylist.id, timeIndex, dayAppointments);
                             const isStylistWorking = isStylistWorkingAtTime(stylist.id, time);
+                            const isStylistOnBreakTime = isStylistOnBreak(stylist.id, time);
+                            const isStylistOnVacationToday = isStylistOnVacation(stylist.id, selectedDate);
+                            const extraordinaryDay = getSalonExtraordinaryDay(selectedDate);
+                            
+                            // Determine cell background color based on status
+                            let cellClasses = "flex-1 min-h-[60px] relative overflow-visible";
+                            if (isStylistOnVacationToday) {
+                              cellClasses += " bg-purple-300 bg-opacity-80"; // Purple for vacation
+                            } else if (extraordinaryDay) {
+                              if (extraordinaryDay.isOpen) {
+                                cellClasses += " bg-yellow-200 bg-opacity-80"; // Yellow for extraordinary open day
+                              } else {
+                                cellClasses += " bg-red-300 bg-opacity-80"; // Red for extraordinary closed day
+                              }
+                            } else if (isStylistOnBreakTime) {
+                              cellClasses += " bg-orange-200 bg-opacity-70"; // Orange for break time
+                            } else if (!isStylistWorking) {
+                              cellClasses += " bg-gray-400 bg-opacity-70"; // Gray for not working
+                            }
                             
                             return (
                               <div key={time} className="flex">
@@ -1814,10 +1989,12 @@ export default function Calendar() {
                                   time={time}
                                   stylistId={stylist.id}
                                   isOccupied={isOccupied}
+                                  isWorkingHour={isStylistWorking}
+                                  isBreakTime={isStylistOnBreakTime}
                                   onEmptyClick={() => handleEmptyCellClick(stylist.id, time)}
                                   hasPendingPaste={!!clipboardAppointment}
                                 >
-                                  <div className={`flex-1 min-h-[60px] relative overflow-visible ${!isStylistWorking ? 'bg-gray-400 bg-opacity-70' : ''}`}>
+                                  <div className={cellClasses}>
                                   {appointmentAtStart && (
                                       <DraggableDailyAppointment
                                         appointment={appointmentAtStart}
@@ -1878,16 +2055,39 @@ export default function Calendar() {
                           // Check if this cell is occupied by an appointment starting here or extending from previous slots
                           const isOccupied = appointmentAtStart !== undefined || isTimeSlotOccupied(stylist.id, timeIndex, dayAppointments);
                           const isStylistWorking = isStylistWorkingAtTime(stylist.id, time);
+                          const isStylistOnBreakTime = isStylistOnBreak(stylist.id, time);
+                          const isStylistOnVacationToday = isStylistOnVacation(stylist.id, selectedDate);
+                          const extraordinaryDay = getSalonExtraordinaryDay(selectedDate);
+                          
+                          // Determine cell background color based on status
+                          let cellClasses = "relative border-r border-gray-300";
+                          
+                          // Priority order: vacation > extraordinary day > break > not working > working
+                          if (isStylistOnVacationToday) {
+                            cellClasses += " bg-purple-300 bg-opacity-80"; // Purple for vacation
+                          } else if (extraordinaryDay) {
+                            if (extraordinaryDay.isOpen) {
+                              cellClasses += " bg-yellow-200 bg-opacity-80"; // Yellow for extraordinary open day
+                            } else {
+                              cellClasses += " bg-red-300 bg-opacity-80"; // Red for extraordinary closed day
+                            }
+                          } else if (isStylistOnBreakTime) {
+                            cellClasses += " bg-orange-200 bg-opacity-70"; // Orange for break time
+                          } else if (!isStylistWorking) {
+                            cellClasses += " bg-gray-400 bg-opacity-70"; // Gray for not working
+                          }
                           
                           return (
                             <div
                               key={stylist.id}
-                              className={`relative border-r border-gray-300 ${!isStylistWorking ? 'bg-gray-400 bg-opacity-70' : ''}`}
+                              className={cellClasses}
                             >
                               <DroppableTimeSlot
                                 time={time}
                                 stylistId={stylist.id}
                                 isOccupied={isOccupied}
+                                isWorkingHour={isStylistWorking}
+                                isBreakTime={isStylistOnBreakTime}
                                 onEmptyClick={() => handleEmptyCellClick(stylist.id, time)}
                                 hasPendingPaste={!!clipboardAppointment}
                               >

@@ -15,12 +15,12 @@
     "isOpen": true
   },
   "thursday": {
-    "openTime": "09:00",
+    "openTime": "08:00",
     "closeTime": "22:00",
     "isOpen": true
   },
   "friday": {
-    "openTime": "09:00",
+    "openTime": "08:00",
     "closeTime": "22:00",
     "isOpen": true
   },
@@ -32,6 +32,6 @@
   "sunday": {
     "openTime": "10:00",
     "closeTime": "18:00",
-    "isOpen": false
+    "isOpen": true
   }
 }

@@ -62,16 +62,42 @@ export const stylists = pgTable("stylists", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// Stylist working hours table
+// Stylist working hours table - Extended for double shifts
 export const stylistWorkingHours = pgTable("stylist_working_hours", {
   id: serial("id").primaryKey(),
   stylistId: integer("stylist_id").references(() => stylists.id).notNull(),
   dayOfWeek: integer("day_of_week").notNull(), // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
   startTime: time("start_time").notNull(),
   endTime: time("end_time").notNull(),
-  breakStartTime: time("break_start_time"), // Optional break start time
-  breakEndTime: time("break_end_time"), // Optional break end time
+  breakStartTime: time("break_start_time"),
+  breakEndTime: time("break_end_time"),
   isWorking: boolean("is_working").default(true), // false = day off
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Stylist vacations table
+export const stylistVacations = pgTable("stylist_vacations", {
+  id: serial("id").primaryKey(),
+  stylistId: integer("stylist_id").references(() => stylists.id).notNull(),
+  startDate: date("start_date").notNull(),
+  endDate: date("end_date").notNull(),
+  reason: varchar("reason", { length: 200 }).default("Ferie"),
+  notes: text("notes"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Extraordinary salon closures/openings table
+export const salonExtraordinaryDays = pgTable("salon_extraordinary_days", {
+  id: serial("id").primaryKey(),
+  date: date("date").notNull().unique(),
+  isClosed: boolean("is_closed").default(true), // true = closed, false = special opening
+  reason: varchar("reason", { length: 200 }).notNull(),
+  specialOpenTime: time("special_open_time"), // for special openings
+  specialCloseTime: time("special_close_time"), // for special openings
+  notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -178,6 +204,21 @@ export const insertRecurringReminderSchema = createInsertSchema(recurringReminde
   nextReminderDate: true,
 });
 
+export const insertStylistVacationSchema = createInsertSchema(stylistVacations).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertSalonExtraordinaryDaySchema = z.object({
+  date: z.string(),
+  reason: z.string().min(1, "La motivazione è richiesta"),
+  isClosed: z.boolean().default(true),
+  specialOpenTime: z.string().nullable(),
+  specialCloseTime: z.string().nullable(),
+  notes: z.string().nullable(),
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -203,6 +244,12 @@ export type InsertMessageTemplate = z.infer<typeof insertMessageTemplateSchema>;
 export type RecurringReminder = typeof recurringReminders.$inferSelect;
 export type InsertRecurringReminder = z.infer<typeof insertRecurringReminderSchema>;
 
+export type StylistVacation = typeof stylistVacations.$inferSelect;
+export type InsertStylistVacation = z.infer<typeof insertStylistVacationSchema>;
+
+export type SalonExtraordinaryDay = typeof salonExtraordinaryDays.$inferSelect;
+export type InsertSalonExtraordinaryDay = z.infer<typeof insertSalonExtraordinaryDaySchema>;
+
 // Extended types with relations
 export type AppointmentWithDetails = Appointment & {
   client: Client;
@@ -214,4 +261,8 @@ export type RecurringReminderWithDetails = RecurringReminder & {
   client: Client;
   stylist: Stylist;
   service: Service;
+};
+
+export type StylistVacationWithDetails = StylistVacation & {
+  stylist: Stylist;
 };

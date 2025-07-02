@@ -143,21 +143,21 @@ export default function Stylists() {
                 Gestisci Orari
               </Button>
             </Link>
-            
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <DialogTrigger asChild>
-                <Button 
-                  className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700"
-                  onClick={() => {
-                    setEditingStylist(null);
-                    form.reset();
-                  }}
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Nuovo Membro
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-[95vw] sm:max-w-md w-full mx-2 sm:mx-4">
+          
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button 
+                className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700"
+                onClick={() => {
+                  setEditingStylist(null);
+                  form.reset();
+                }}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Nuovo Membro
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-[95vw] sm:max-w-md w-full mx-2 sm:mx-4">
               <DialogHeader>
                 <DialogTitle>
                   {editingStylist ? "Modifica Membro Staff" : "Nuovo Membro Staff"}
@@ -219,8 +219,8 @@ export default function Stylists() {
                   </Button>
                 </form>
               </Form>
-              </DialogContent>
-            </Dialog>
+            </DialogContent>
+          </Dialog>
           </div>
         </div>
 

@@ -6,6 +6,9 @@ import {
   appointments,
   messageTemplates,
   recurringReminders,
+  stylistVacations,
+  stylistWorkingHours,
+  salonExtraordinaryDays,
   type User,
   type InsertUser,
   type Client,
@@ -22,6 +25,13 @@ import {
   type RecurringReminder,
   type InsertRecurringReminder,
   type RecurringReminderWithDetails,
+  type StylistVacation,
+  type InsertStylistVacation,
+  type StylistVacationWithDetails,
+  type StylistWorkingHours,
+  type InsertStylistWorkingHours,
+  type SalonExtraordinaryDay,
+  type InsertSalonExtraordinaryDay,
 } from "@shared/schema";
 import { eq, and, gte, lte, desc, asc, like, or } from "drizzle-orm";
 import { db } from "./db";
@@ -108,6 +118,25 @@ export interface IStorage {
   getOpeningHours(): Promise<any>;
   getOpeningHoursForDay(day: string): Promise<{ openTime: string; closeTime: string; isOpen: boolean }>;
   saveOpeningHours(hours: any): Promise<boolean>;
+
+  // Stylist vacation management
+  createStylistVacation(vacationData: InsertStylistVacation): Promise<StylistVacation>;
+  getStylistVacation(id: number): Promise<StylistVacation | undefined>;
+  getStylistVacations(stylistId: number): Promise<StylistVacation[]>;
+  getAllStylistVacations(): Promise<StylistVacationWithDetails[]>;
+  updateStylistVacation(id: number, vacationData: Partial<InsertStylistVacation>): Promise<StylistVacation | undefined>;
+  deleteStylistVacation(id: number): Promise<boolean>;
+  isStylistOnVacation(stylistId: number, date: string): Promise<boolean>;
+
+  // Stylist working hours management
+  getStylistWorkingHours(stylistId: number): Promise<StylistWorkingHours[]>;
+  getStylistWorkingHoursByDay(stylistId: number, dayOfWeek: number): Promise<StylistWorkingHours | undefined>;
+  upsertStylistWorkingHours(stylistId: number, dayOfWeek: number, workingHoursData: InsertStylistWorkingHours): Promise<StylistWorkingHours>;
+
+  // Salon extraordinary days management
+  createSalonExtraordinaryDay(dayData: InsertSalonExtraordinaryDay): Promise<SalonExtraordinaryDay>;
+  getAllSalonExtraordinaryDays(): Promise<SalonExtraordinaryDay[]>;
+  deleteSalonExtraordinaryDay(id: number): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1193,7 +1222,7 @@ export class DatabaseStorage implements IStorage {
       thursday: { openTime: "08:00", closeTime: "22:00", isOpen: true },
       friday: { openTime: "08:00", closeTime: "22:00", isOpen: true },
       saturday: { openTime: "09:00", closeTime: "20:00", isOpen: true },
-      sunday: { openTime: "10:00", closeTime: "18:00", isOpen: false }
+      sunday: { openTime: "10:00", closeTime: "18:00", isOpen: true }
     };
   }
 
@@ -1232,6 +1261,155 @@ export class DatabaseStorage implements IStorage {
     }
     
     return true;
+  }
+
+  // Stylist vacation management
+  async createStylistVacation(vacationData: InsertStylistVacation): Promise<StylistVacation> {
+    const [vacation] = await db.insert(stylistVacations).values(vacationData).returning();
+    return vacation;
+  }
+
+  async getStylistVacation(id: number): Promise<StylistVacation | undefined> {
+    const [vacation] = await db.select().from(stylistVacations).where(eq(stylistVacations.id, id));
+    return vacation || undefined;
+  }
+
+  async getStylistVacations(stylistId: number): Promise<StylistVacation[]> {
+    return await db
+      .select()
+      .from(stylistVacations)
+      .where(and(eq(stylistVacations.stylistId, stylistId), eq(stylistVacations.isActive, true)))
+      .orderBy(stylistVacations.startDate);
+  }
+
+  async getAllStylistVacations(): Promise<StylistVacationWithDetails[]> {
+    const results = await db
+      .select({
+        id: stylistVacations.id,
+        stylistId: stylistVacations.stylistId,
+        startDate: stylistVacations.startDate,
+        endDate: stylistVacations.endDate,
+        reason: stylistVacations.reason,
+        notes: stylistVacations.notes,
+        isActive: stylistVacations.isActive,
+        createdAt: stylistVacations.createdAt,
+        updatedAt: stylistVacations.updatedAt,
+        stylist: stylists,
+      })
+      .from(stylistVacations)
+      .leftJoin(stylists, eq(stylistVacations.stylistId, stylists.id))
+      .where(eq(stylistVacations.isActive, true))
+      .orderBy(stylistVacations.startDate);
+
+    return results.map(result => ({
+      ...result,
+      stylist: result.stylist!
+    }));
+  }
+
+  async updateStylistVacation(id: number, vacationData: Partial<InsertStylistVacation>): Promise<StylistVacation | undefined> {
+    const [vacation] = await db
+      .update(stylistVacations)
+      .set({ ...vacationData, updatedAt: new Date() })
+      .where(eq(stylistVacations.id, id))
+      .returning();
+    return vacation || undefined;
+  }
+
+  async deleteStylistVacation(id: number): Promise<boolean> {
+    const result = await db
+      .update(stylistVacations)
+      .set({ isActive: false, updatedAt: new Date() })
+      .where(eq(stylistVacations.id, id));
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async isStylistOnVacation(stylistId: number, date: string): Promise<boolean> {
+    const [vacation] = await db
+      .select()
+      .from(stylistVacations)
+      .where(
+        and(
+          eq(stylistVacations.stylistId, stylistId),
+          eq(stylistVacations.isActive, true),
+          lte(stylistVacations.startDate, date),
+          gte(stylistVacations.endDate, date)
+        )
+      )
+      .limit(1);
+    
+    return !!vacation;
+  }
+
+  // Stylist working hours management
+  async getStylistWorkingHours(stylistId: number): Promise<StylistWorkingHours[]> {
+    return await db
+      .select()
+      .from(stylistWorkingHours)
+      .where(eq(stylistWorkingHours.stylistId, stylistId))
+      .orderBy(stylistWorkingHours.dayOfWeek);
+  }
+
+  async getStylistWorkingHoursByDay(stylistId: number, dayOfWeek: number): Promise<StylistWorkingHours | undefined> {
+    const [result] = await db
+      .select()
+      .from(stylistWorkingHours)
+      .where(and(
+        eq(stylistWorkingHours.stylistId, stylistId), 
+        eq(stylistWorkingHours.dayOfWeek, dayOfWeek)
+      ));
+    return result || undefined;
+  }
+
+  async upsertStylistWorkingHours(stylistId: number, dayOfWeek: number, workingHoursData: InsertStylistWorkingHours): Promise<StylistWorkingHours> {
+    // First try to find existing record
+    const existing = await this.getStylistWorkingHoursByDay(stylistId, dayOfWeek);
+    
+    if (existing) {
+      // Update existing record
+      const [updated] = await db
+        .update(stylistWorkingHours)
+        .set({
+          startTime: workingHoursData.startTime,
+          endTime: workingHoursData.endTime,
+          breakStartTime: workingHoursData.breakStartTime,
+          breakEndTime: workingHoursData.breakEndTime,
+          isWorking: workingHoursData.isWorking,
+          updatedAt: new Date()
+        })
+        .where(and(
+          eq(stylistWorkingHours.stylistId, stylistId),
+          eq(stylistWorkingHours.dayOfWeek, dayOfWeek)
+        ))
+        .returning();
+      return updated;
+    } else {
+      // Create new record
+      const [created] = await db
+        .insert(stylistWorkingHours)
+        .values({
+          ...workingHoursData,
+          stylistId,
+          dayOfWeek
+        })
+        .returning();
+      return created;
+    }
+  }
+
+  // Salon extraordinary days management
+  async createSalonExtraordinaryDay(dayData: InsertSalonExtraordinaryDay): Promise<SalonExtraordinaryDay> {
+    const [day] = await db.insert(salonExtraordinaryDays).values(dayData).returning();
+    return day;
+  }
+
+  async getAllSalonExtraordinaryDays(): Promise<SalonExtraordinaryDay[]> {
+    return await db.select().from(salonExtraordinaryDays).orderBy(salonExtraordinaryDays.date);
+  }
+
+  async deleteSalonExtraordinaryDay(id: number): Promise<boolean> {
+    const result = await db.delete(salonExtraordinaryDays).where(eq(salonExtraordinaryDays.id, id));
+    return (result.rowCount ?? 0) > 0;
   }
 }
 

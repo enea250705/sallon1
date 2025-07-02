@@ -1,10 +1,12 @@
 import { useDroppable } from '@dnd-kit/core';
-import { Plus, Clipboard } from 'lucide-react';
+import { Plus, Clipboard, Coffee, X } from 'lucide-react';
 
 interface DroppableTimeSlotProps {
   time: string;
   stylistId: number;
   isOccupied: boolean;
+  isBreakTime?: boolean;
+  isWorkingHour?: boolean;
   children: React.ReactNode;
   onEmptyClick: () => void;
   hasPendingPaste?: boolean;
@@ -13,7 +15,9 @@ interface DroppableTimeSlotProps {
 export function DroppableTimeSlot({ 
   time, 
   stylistId, 
-  isOccupied, 
+  isOccupied,
+  isBreakTime = false,
+  isWorkingHour = true,
   children, 
   onEmptyClick,
   hasPendingPaste = false
@@ -25,6 +29,29 @@ export function DroppableTimeSlot({
       stylistId: stylistId,
     },
   });
+
+  // If it's break time or not working hours, disable interactions
+  if (!isWorkingHour || isBreakTime) {
+    return (
+      <div className="relative w-full h-full bg-gray-100 border-gray-200">
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="text-center">
+            {isBreakTime ? (
+              <>
+                <Coffee className="h-4 w-4 mx-auto mb-1 text-gray-400" />
+                <div className="text-xs font-medium text-gray-400">Pausa</div>
+              </>
+            ) : (
+              <>
+                <X className="h-4 w-4 mx-auto mb-1 text-gray-400" />
+                <div className="text-xs font-medium text-gray-400">Non lavora</div>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div 

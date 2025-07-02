@@ -1,26 +1,36 @@
-import type { Express } from "express";
-import { createServer, type Server } from "http";
+import { Express, Server } from "express";
+import { createServer } from "http";
 import path from "path";
 import { storage } from "./storage";
 import bcrypt from "bcrypt";
 import session from "express-session";
-import { insertClientSchema, insertAppointmentSchema, insertServiceSchema, insertStylistSchema, insertMessageTemplateSchema, insertUserSchema, insertRecurringReminderSchema } from "@shared/schema";
+import {
+  insertClientSchema,
+  insertAppointmentSchema,
+  insertServiceSchema,
+  insertStylistSchema,
+  insertMessageTemplateSchema,
+  insertUserSchema,
+  insertRecurringReminderSchema,
+  insertStylistVacationSchema,
+  insertSalonExtraordinaryDaySchema,
+} from "@shared/schema";
 import { z } from "zod";
 
-
-// Authentication middleware
 const isAuthenticated = (req: any, res: any, next: any) => {
-  if (req.session && req.session.user) {
-    return next();
+  if (req.session.user) {
+    next();
+  } else {
+    res.status(401).json({ message: "Unauthorized" });
   }
-  return res.status(401).json({ message: "Unauthorized" });
 };
 
 const isAdmin = (req: any, res: any, next: any) => {
-  if (req.session && req.session.user && req.session.user.role === "admin") {
-    return next();
+  if (req.session.user?.role === "admin") {
+    next();
+  } else {
+    res.status(403).json({ message: "Forbidden" });
   }
-  return res.status(403).json({ message: "Forbidden" });
 };
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -109,22 +119,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/users", isAuthenticated, isAdmin, async (req, res) => {
     try {
-      const userData = insertUserSchema.parse(req.body);
-      
-      // Hash the password
-      const hashedPassword = await bcrypt.hash(userData.password, 10);
-      
-      const user = await storage.createUser({
-        ...userData,
-        password: hashedPassword,
-      });
-      
-      // Don't send password in the response
-      const { password, ...userWithoutPassword } = user;
-      res.status(201).json(userWithoutPassword);
+      const validatedData = insertUserSchema.parse(req.body);
+      const user = await storage.createUser(validatedData);
+      res.status(201).json(user);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Validation error", errors: error.errors });
+        return res.status(400).json({ message: "Invalid data", errors: error.errors });
       }
       console.error("Error creating user:", error);
       res.status(500).json({ message: "Failed to create user" });
@@ -330,9 +330,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Stylist management routes
-  app.get("/api/stylists", isAuthenticated, async (req, res) => {
+  app.get("/api/stylists", async (req, res) => {
     try {
+      console.log('GET /api/stylists called');
       const stylists = await storage.getAllStylists();
+      console.log('Found stylists:', stylists.length);
       res.json(stylists);
     } catch (error) {
       console.error("Error fetching stylists:", error);
@@ -383,6 +385,178 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error deleting stylist:", error);
       res.status(500).json({ message: "Failed to delete stylist" });
+    }
+  });
+
+  // Stylist vacation management routes (temporarily remove auth)
+  app.get("/api/stylists/vacations", async (req, res) => {
+    try {
+      console.log('GET /api/stylists/vacations called');
+      const vacations = await storage.getAllStylistVacations();
+      console.log('Found vacations:', vacations.length);
+      res.json(vacations);
+    } catch (error) {
+      console.error("Error fetching stylist vacations:", error);
+      res.status(500).json({ message: "Failed to fetch stylist vacations", error: error.message });
+    }
+  });
+
+  app.post("/api/stylists/vacations", async (req, res) => {
+    try {
+      console.log('POST /api/stylists/vacations called with body:', req.body);
+      const { stylistId, startDate, endDate, reason, notes } = req.body;
+      
+      if (!stylistId || !startDate || !endDate || !reason) {
+        console.log('Missing required fields:', { stylistId, startDate, endDate, reason });
+        return res.status(400).json({ message: "Stylist ID, start date, end date, and reason are required" });
+      }
+      
+      console.log('Creating vacation:', { stylistId, startDate, endDate, reason, notes });
+      const vacation = await storage.createStylistVacation({
+        stylistId,
+        startDate,
+        endDate,
+        reason,
+        notes: notes || null,
+        isActive: true
+      });
+      
+      console.log('Created vacation:', vacation);
+      res.status(201).json(vacation);
+    } catch (error) {
+      console.error("Error creating stylist vacation:", error);
+      res.status(500).json({ message: "Failed to create stylist vacation", error: error.message });
+    }
+  });
+
+  app.delete("/api/stylists/vacations/:id", async (req, res) => {
+    try {
+      console.log('DELETE /api/stylists/vacations/:id called with id:', req.params.id);
+      const id = parseInt(req.params.id);
+      const success = await storage.deleteStylistVacation(id);
+      if (!success) {
+        return res.status(404).json({ message: "Vacation not found" });
+      }
+      console.log('Deleted vacation:', id);
+      res.json({ message: "Vacation deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting stylist vacation:", error);
+      res.status(500).json({ message: "Failed to delete stylist vacation", error: error.message });
+    }
+  });
+
+  // Salon extraordinary days management routes (temporarily remove auth)
+  app.get("/api/salon-extraordinary-days", async (req, res) => {
+    try {
+      console.log('GET /api/salon-extraordinary-days called');
+      const extraordinaryDays = await storage.getAllSalonExtraordinaryDays();
+      console.log('Found extraordinary days:', extraordinaryDays.length);
+      res.json(extraordinaryDays);
+    } catch (error) {
+      console.error("Error fetching salon extraordinary days:", error);
+      res.status(500).json({ message: "Failed to fetch salon extraordinary days", error: error.message });
+    }
+  });
+
+  app.post("/api/salon-extraordinary-days", async (req, res) => {
+    try {
+      console.log('POST /api/salon-extraordinary-days called with body:', req.body);
+
+      // Nuovi campi secondo schema aggiornato
+      const { date, reason, isClosed, specialOpenTime, specialCloseTime, notes } = req.body;
+
+      if (!date || !reason) {
+        console.log('Missing required fields:', { date, reason });
+        return res.status(400).json({ message: "Date and reason are required" });
+      }
+
+      const payload = {
+        date,
+        reason,
+        isClosed: typeof isClosed === 'boolean' ? isClosed : true,
+        specialOpenTime: isClosed ? null : specialOpenTime || null,
+        specialCloseTime: isClosed ? null : specialCloseTime || null,
+        notes: notes || null,
+      };
+
+      console.log('Creating extraordinary day with payload:', payload);
+      const extraordinaryDay = await storage.createSalonExtraordinaryDay(payload);
+
+      console.log('Created extraordinary day:', extraordinaryDay);
+      res.status(201).json(extraordinaryDay);
+    } catch (error) {
+      console.error("Error creating salon extraordinary day:", error);
+      res.status(500).json({ message: "Failed to create salon extraordinary day", error: error.message });
+    }
+  });
+
+  app.delete("/api/salon-extraordinary-days/:id", async (req, res) => {
+    try {
+      console.log('DELETE /api/salon-extraordinary-days/:id called with id:', req.params.id);
+      const id = parseInt(req.params.id);
+      const success = await storage.deleteSalonExtraordinaryDay(id);
+      if (!success) {
+        return res.status(404).json({ message: "Salon extraordinary day not found" });
+      }
+      console.log('Deleted extraordinary day:', id);
+      res.json({ message: "Salon extraordinary day deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting salon extraordinary day:", error);
+      res.status(500).json({ message: "Failed to delete salon extraordinary day", error: error.message });
+    }
+  });
+
+  // Stylist working hours management routes (temporarily remove auth)
+  app.get("/api/stylists/working-hours", async (req, res) => {
+    try {
+      console.log('GET /api/stylists/working-hours called with query:', req.query);
+      const { stylistId } = req.query;
+      
+      if (!stylistId) {
+        console.log('No stylist ID provided');
+        return res.status(400).json({ message: "Stylist ID is required" });
+      }
+      
+      console.log('Fetching working hours for stylist:', stylistId);
+      const workingHours = await storage.getStylistWorkingHours(parseInt(stylistId as string));
+      console.log('Found working hours:', workingHours);
+      res.json(workingHours);
+    } catch (error) {
+      console.error("Error fetching stylist working hours:", error);
+      res.status(500).json({ message: "Failed to fetch stylist working hours", error: error.message });
+    }
+  });
+
+  app.post("/api/stylists/working-hours", async (req, res) => {
+    try {
+      console.log('POST /api/stylists/working-hours called with body:', req.body);
+      const { stylistId, dayOfWeek, startTime, endTime, breakStartTime, breakEndTime, isWorking } = req.body;
+      
+      if (!stylistId || dayOfWeek === undefined) {
+        console.log('Missing required fields:', { stylistId, dayOfWeek });
+        return res.status(400).json({ message: "Stylist ID and day of week are required" });
+      }
+      
+      console.log('Saving working hours:', { stylistId, dayOfWeek, startTime, endTime, breakStartTime, breakEndTime, isWorking });
+      const workingHours = await storage.upsertStylistWorkingHours(
+        stylistId,
+        dayOfWeek,
+        {
+          stylistId,
+          dayOfWeek,
+          startTime,
+          endTime,
+          breakStartTime,
+          breakEndTime,
+          isWorking
+        }
+      );
+      
+      console.log('Saved working hours:', workingHours);
+      res.status(201).json(workingHours);
+    } catch (error) {
+      console.error("Error saving stylist working hours:", error);
+      res.status(500).json({ message: "Failed to save stylist working hours", error: error.message });
     }
   });
 

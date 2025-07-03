@@ -44,21 +44,61 @@ export default function StylistHours() {
     },
   });
 
-  // Initialize working days when stylist changes
+  // Fetch existing working hours for selected stylist
+  const { data: existingWorkingHours, isLoading: loadingHours } = useQuery({
+    queryKey: ["/api/stylists/working-hours", selectedStylist],
+    queryFn: async () => {
+      if (!selectedStylist) return null;
+      const response = await fetch(`/api/stylists/working-hours?stylistId=${selectedStylist}`);
+      if (!response.ok) throw new Error("Failed to fetch working hours");
+      return response.json();
+    },
+    enabled: !!selectedStylist,
+  });
+
+  // Initialize working days when stylist changes or existing hours are loaded
   useEffect(() => {
     if (selectedStylist) {
-      // Initialize with default schedule
-      const defaultDays = DAYS.map(day => ({
-        dayOfWeek: day.dayOfWeek,
-        isWorking: day.dayOfWeek >= 1 && day.dayOfWeek <= 6, // Monday to Saturday
-        startTime: "09:00",
-        endTime: "18:00",
-        breakStartTime: "13:00",
-        breakEndTime: "14:00"
-      }));
-      setWorkingDays(defaultDays);
+      if (existingWorkingHours && existingWorkingHours.length > 0) {
+        // Use existing hours from database
+        const workingDaysFromDB = DAYS.map(day => {
+          const existingDay = existingWorkingHours.find((wh: any) => wh.dayOfWeek === day.dayOfWeek);
+          if (existingDay) {
+            return {
+              dayOfWeek: day.dayOfWeek,
+              isWorking: existingDay.isWorking,
+              startTime: existingDay.startTime,
+              endTime: existingDay.endTime,
+              breakStartTime: existingDay.breakStartTime || "13:00",
+              breakEndTime: existingDay.breakEndTime || "14:00"
+            };
+          } else {
+            // Default for days not found in database
+            return {
+              dayOfWeek: day.dayOfWeek,
+              isWorking: day.dayOfWeek >= 1 && day.dayOfWeek <= 6, // Monday to Saturday
+              startTime: "09:00",
+              endTime: "18:00",
+              breakStartTime: "13:00",
+              breakEndTime: "14:00"
+            };
+          }
+        });
+        setWorkingDays(workingDaysFromDB);
+      } else if (!loadingHours) {
+        // No existing hours found, use defaults
+        const defaultDays = DAYS.map(day => ({
+          dayOfWeek: day.dayOfWeek,
+          isWorking: day.dayOfWeek >= 1 && day.dayOfWeek <= 6, // Monday to Saturday
+          startTime: "09:00",
+          endTime: "18:00",
+          breakStartTime: "13:00",
+          breakEndTime: "14:00"
+        }));
+        setWorkingDays(defaultDays);
+      }
     }
-  }, [selectedStylist]);
+  }, [selectedStylist, existingWorkingHours, loadingHours]);
 
   // Auto-select first stylist
   useEffect(() => {
@@ -119,6 +159,10 @@ export default function StylistHours() {
       toast({ 
         title: "Orari salvati",
         description: "Gli orari di lavoro sono stati salvati con successo.",
+      });
+      // Invalidate and refetch working hours
+      queryClient.invalidateQueries({ 
+        queryKey: ["/api/stylists/working-hours", selectedStylist] 
       });
     },
     onError: (error: Error) => {
@@ -224,6 +268,9 @@ export default function StylistHours() {
               <CardTitle className="flex items-center space-x-2">
                 <Clock className="h-5 w-5" />
                 <span>Orari Settimanali</span>
+                {loadingHours && (
+                  <span className="text-sm text-gray-500">Caricamento...</span>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent>

@@ -464,12 +464,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Nuovi campi secondo schema aggiornato
       const { date, reason, isClosed, specialOpenTime, specialCloseTime, notes } = req.body;
-
+      
       if (!date || !reason) {
         console.log('Missing required fields:', { date, reason });
         return res.status(400).json({ message: "Date and reason are required" });
       }
-
+      
       const payload = {
         date,
         reason,
@@ -481,7 +481,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log('Creating extraordinary day with payload:', payload);
       const extraordinaryDay = await storage.createSalonExtraordinaryDay(payload);
-
+      
       console.log('Created extraordinary day:', extraordinaryDay);
       res.status(201).json(extraordinaryDay);
     } catch (error) {

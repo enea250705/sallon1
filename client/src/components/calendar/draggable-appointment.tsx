@@ -1,6 +1,6 @@
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
-import { Trash2 } from 'lucide-react';
+import { Trash2, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface DraggableAppointmentProps {
@@ -33,11 +33,15 @@ export function DraggableAppointment({ appointment, isMonthView = false, onDelet
       <div
         className={`
           text-xs px-1 py-0.5 bg-gradient-to-r from-pink-100 to-purple-100 text-pink-700 rounded truncate cursor-pointer
-          hover:from-pink-200 hover:to-purple-200 transition-colors
+          hover:from-pink-200 hover:to-purple-200 transition-colors relative
         `}
-        title={`${appointment.startTime.slice(0, 5)} - ${appointment.client.firstName} ${appointment.client.lastName} - ${appointment.service.name}`}
+        title={`${appointment.startTime.slice(0, 5)} - ${appointment.client.firstName} ${appointment.client.lastName} - ${appointment.service.name}${appointment.notes && appointment.notes.trim() !== '' ? ' (Ha una nota)' : ''}`}
       >
         {appointment.startTime.slice(0, 5)} {appointment.client.firstName}
+        {/* Notes icon for month view */}
+        {appointment.notes && appointment.notes.trim() !== '' && (
+          <FileText className="h-3 w-3 text-pink-600 absolute top-0 right-0 bg-white rounded-full p-0.5" title="Questo appuntamento ha una nota" />
+        )}
       </div>
     );
   }

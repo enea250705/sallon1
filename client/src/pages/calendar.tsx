@@ -315,7 +315,7 @@ export default function Calendar() {
         date: data.date,
         startTime: startTime,
         endTime: endTime,
-        notes: "",
+        notes: data.notes || "",
       });
     },
     onSuccess: () => {
@@ -453,7 +453,7 @@ export default function Calendar() {
       date: data.date,
       startTime: startTime,
       endTime: endTime,
-      notes: editingAppointment.notes || "",
+      notes: data.notes || "",
     };
 
     updateAppointmentMutation.mutate({ 

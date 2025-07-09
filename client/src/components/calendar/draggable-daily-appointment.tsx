@@ -1,6 +1,6 @@
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, Scissors } from 'lucide-react';
+import { GripVertical, Scissors, FileText } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
 interface DraggableDailyAppointmentProps {
@@ -134,6 +134,12 @@ export function DraggableDailyAppointment({
         {isCut && (
           <div className="absolute top-1 right-1 bg-yellow-400 bg-opacity-90 rounded-full p-1">
             <Scissors className="h-3 w-3 text-yellow-800" />
+          </div>
+        )}
+        {/* Notes icon */}
+        {appointment.notes && appointment.notes.trim() !== '' && !appointment.type && !isCut && (
+          <div className="absolute top-1 right-1 bg-white bg-opacity-20 rounded-full p-1" title="Questo appuntamento ha una nota">
+            <FileText className="h-3 w-3 text-white" />
           </div>
         )}
         <div className={`font-bold truncate ${height === 1 ? 'text-xs' : 'text-sm'} leading-tight ${height === 1 ? 'mb-0.5' : 'mb-1'}`}>

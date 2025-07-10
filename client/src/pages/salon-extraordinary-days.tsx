@@ -14,11 +14,10 @@ import { it } from "date-fns/locale";
 interface ExtraordinaryDay {
   id: number;
   date: string;
-  type: string;
-  description: string;
-  isOpen: boolean;
-  openTime?: string;
-  closeTime?: string;
+  reason: string;
+  isClosed: boolean;
+  specialOpenTime?: string;
+  specialCloseTime?: string;
   notes?: string;
 }
 
@@ -285,26 +284,17 @@ export default function SalonExtraordinaryDays() {
                   <div key={day.id} className="border rounded-lg p-4 flex items-center justify-between">
                     <div className="space-y-1">
                       <div className="flex items-center space-x-4">
-                        <h3 className="font-semibold">{day.description}</h3>
+                        <h3 className="font-semibold">{day.reason}</h3>
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          day.type === 'Festività' ? 'bg-red-100 text-red-800' :
-                          day.type === 'Evento Speciale' ? 'bg-purple-100 text-purple-800' :
-                          day.type === 'Chiusura Straordinaria' ? 'bg-gray-100 text-gray-800' :
-                          day.type === 'Orario Ridotto' ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-green-100 text-green-800'
+                          !day.isClosed ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                         }`}>
-                          {day.type}
-                        </span>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          day.isOpen ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                        }`}>
-                          {day.isOpen ? 'Aperto' : 'Chiuso'}
+                          {!day.isClosed ? 'Aperto con orari speciali' : 'Chiuso'}
                         </span>
                       </div>
                       <p className="text-sm text-gray-600">
                         {format(new Date(day.date), 'dd MMMM yyyy', { locale: it })}
-                        {day.isOpen && day.openTime && day.closeTime && 
-                          ` • ${day.openTime} - ${day.closeTime}`}
+                        {!day.isClosed && day.specialOpenTime && day.specialCloseTime && 
+                          ` • ${day.specialOpenTime} - ${day.specialCloseTime}`}
                         {day.notes && ` • ${day.notes}`}
                       </p>
                     </div>

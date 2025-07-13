@@ -36,8 +36,8 @@ export function DroppableTimeSlot({
       <div className="relative w-full h-full bg-gray-100 border-gray-200">
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="text-center">
-            <X className="h-4 w-4 mx-auto mb-1 text-gray-400" />
-            <div className="text-xs font-medium text-gray-400">Non lavora</div>
+                <X className="h-4 w-4 mx-auto mb-1 text-gray-400" />
+                <div className="text-xs font-medium text-gray-400">Non lavora</div>
           </div>
         </div>
       </div>

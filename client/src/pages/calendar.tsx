@@ -1967,7 +1967,7 @@ export default function Calendar() {
                             if (isStylistOnVacationToday) {
                               cellClasses += " bg-purple-300 bg-opacity-80"; // Purple for vacation
                             } else if (extraordinaryDay) {
-                              if (extraordinaryDay.isOpen) {
+                              if (!extraordinaryDay.isClosed) {
                                 cellClasses += " bg-yellow-200 bg-opacity-80"; // Yellow for extraordinary open day
                               } else {
                                 cellClasses += " bg-red-300 bg-opacity-80"; // Red for extraordinary closed day
@@ -2066,7 +2066,7 @@ export default function Calendar() {
                           if (isStylistOnVacationToday) {
                             cellClasses += " bg-purple-300 bg-opacity-80"; // Purple for vacation
                           } else if (extraordinaryDay) {
-                            if (extraordinaryDay.isOpen) {
+                            if (!extraordinaryDay.isClosed) {
                               cellClasses += " bg-yellow-200 bg-opacity-80"; // Yellow for extraordinary open day
                             } else {
                               cellClasses += " bg-red-300 bg-opacity-80"; // Red for extraordinary closed day

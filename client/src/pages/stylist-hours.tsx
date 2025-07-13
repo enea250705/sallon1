@@ -87,16 +87,16 @@ export default function StylistHours() {
         setWorkingDays(workingDaysFromDB);
       } else if (!loadingHours) {
         // No existing hours found, use defaults
-        const defaultDays = DAYS.map(day => ({
-          dayOfWeek: day.dayOfWeek,
-          isWorking: day.dayOfWeek >= 1 && day.dayOfWeek <= 6, // Monday to Saturday
-          startTime: "09:00",
-          endTime: "18:00",
-          breakStartTime: "13:00",
-          breakEndTime: "14:00"
-        }));
-        setWorkingDays(defaultDays);
-      }
+      const defaultDays = DAYS.map(day => ({
+        dayOfWeek: day.dayOfWeek,
+        isWorking: day.dayOfWeek >= 1 && day.dayOfWeek <= 6, // Monday to Saturday
+        startTime: "09:00",
+        endTime: "18:00",
+        breakStartTime: "13:00",
+        breakEndTime: "14:00"
+      }));
+      setWorkingDays(defaultDays);
+    }
     }
   }, [selectedStylist, existingWorkingHours, loadingHours]);
 

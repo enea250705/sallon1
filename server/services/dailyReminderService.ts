@@ -106,37 +106,46 @@ export class DailyReminderService {
   }
 
   /**
-   * Starts the daily scheduler to run at 9:00 AM every day
+   * Starts the daily scheduler to run at 9:00 AM every day (Italy time)
    */
   startDailyScheduler(): void {
     console.log('🌅 Starting daily reminder scheduler...');
-    console.log('📅 Reminders will be sent every day at 9:00 AM for next day appointments');
+    console.log('📅 Reminders will be sent every day at 9:00 AM Italy time for next day appointments');
     
-    // Calculate milliseconds until next 9:00 AM
+    // Calculate milliseconds until next 9:00 AM Italy time
     const now = new Date();
-    const next9AM = new Date(now);
-    next9AM.setHours(9, 0, 0, 0);
     
-    // If it's already past 9:00 AM today, schedule for tomorrow
-    if (now.getTime() >= next9AM.getTime()) {
-      next9AM.setDate(next9AM.getDate() + 1);
+    // Create date in Italy timezone (UTC+2 in summer, UTC+1 in winter)
+    const nowItaly = new Date(now.toLocaleString("en-US", {timeZone: "Europe/Rome"}));
+    const next9AMItaly = new Date(nowItaly);
+    next9AMItaly.setHours(9, 0, 0, 0);
+    
+    // If it's already past 9:00 AM today in Italy, schedule for tomorrow
+    if (nowItaly.getTime() >= next9AMItaly.getTime()) {
+      next9AMItaly.setDate(next9AMItaly.getDate() + 1);
     }
     
-    const timeUntilNext9AM = next9AM.getTime() - now.getTime();
+    // Convert back to server time for setTimeout
+    const timeUntilNext9AM = next9AMItaly.getTime() - nowItaly.getTime();
     
-    console.log(`⏰ Next reminder run scheduled for: ${format(next9AM, 'PPpp', { locale: it })}`);
+    console.log(`🇮🇹 Current time Italy: ${nowItaly.toLocaleString('it-IT')}`);
+    console.log(`⏰ Next reminder run scheduled for: ${next9AMItaly.toLocaleString('it-IT')} (Italy time)`);
     console.log(`⏱️ Time until next run: ${Math.round(timeUntilNext9AM / 1000 / 60)} minutes`);
     
     // Schedule first run
     setTimeout(() => {
+      console.log('🌅 Daily reminder triggered at 9:00 AM Italy time');
       this.sendDailyReminders();
       
       // Then schedule every 24 hours
       setInterval(() => {
+        console.log('🌅 Daily reminder triggered at 9:00 AM Italy time');
         this.sendDailyReminders();
       }, 24 * 60 * 60 * 1000); // 24 hours
       
     }, timeUntilNext9AM);
+    
+    console.log('✅ Daily scheduler configured for Italy timezone (Europe/Rome)');
   }
 
   /**

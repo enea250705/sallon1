@@ -21,6 +21,7 @@ import { DroppableDay } from "@/components/calendar/droppable-day";
 import { DroppableTimeSlot } from "@/components/calendar/droppable-time-slot";
 import { DraggableDailyAppointment } from "@/components/calendar/draggable-daily-appointment";
 import { ClientSelector } from "@/components/client-selector";
+import { formatPhoneForDisplay, extractPhoneDigits } from "@/lib/phone-utils";
 
 const appointmentSchema = z.object({
   clientType: z.enum(["new", "existing"], { required_error: "Tipo cliente è richiesto" }),
@@ -568,7 +569,7 @@ export default function Calendar() {
   const handleClientSelection = (client: any) => {
     form.setValue("clientId", client.id);
     form.setValue("clientName", `${client.firstName} ${client.lastName}`);
-    form.setValue("clientPhone", client.phone);
+    form.setValue("clientPhone", extractPhoneDigits(client.phone));
     setIsClientSelectorOpen(false);
   };
 
@@ -933,7 +934,7 @@ export default function Calendar() {
       clientType: "existing",
       clientId: appointment.clientId,
       clientName: `${appointment.client.firstName} ${appointment.client.lastName}`,
-      clientPhone: appointment.client.phone || "",
+      clientPhone: extractPhoneDigits(appointment.client.phone || ""),
       notes: appointment.notes || "",
     });
 
@@ -2172,7 +2173,7 @@ export default function Calendar() {
                   <div className="flex items-center space-x-2">
                     <div className="w-full">
                       <Input 
-                        value={selectedAppointment.client?.phone || ''} 
+                        value={formatPhoneForDisplay(selectedAppointment.client?.phone || '')} 
                         placeholder="Telefono"
                         readOnly
                         className="bg-gray-50 h-12 text-base"

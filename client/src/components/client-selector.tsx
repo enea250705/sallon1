@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Search, User, Phone } from 'lucide-react';
+import { formatPhoneForDisplay } from '@/lib/phone-utils';
 
 interface Client {
   id: number;
@@ -109,7 +110,7 @@ export function ClientSelector({ isOpen, onClose, onSelectClient, clients }: Cli
                         </div>
                         <div className="flex items-center space-x-2 mt-1">
                           <Phone className="h-4 w-4 text-gray-400" />
-                          <span className="text-gray-600">{client.phone}</span>
+                          <span className="text-gray-600">{formatPhoneForDisplay(client.phone)}</span>
                         </div>
                         {client.email && (
                           <div className="text-sm text-gray-500 mt-1">

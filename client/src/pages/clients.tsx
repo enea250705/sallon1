@@ -16,6 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
+import { formatPhoneForDisplay } from "@/lib/phone-utils";
 
 const clientSchema = z.object({
   firstName: z.string().min(1, "Nome è richiesto"),
@@ -352,7 +353,7 @@ export default function Clients() {
                           <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4 space-y-1 sm:space-y-0 text-xs sm:text-sm text-gray-600 mt-1">
                             <div className="flex items-center space-x-1">
                               <Phone className="h-3 w-3 sm:h-4 sm:w-4" />
-                              <span className="truncate">{client.phone}</span>
+                              <span className="truncate">{formatPhoneForDisplay(client.phone)}</span>
                             </div>
                             {client.email && (
                               <div className="flex items-center space-x-1">

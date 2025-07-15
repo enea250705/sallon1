@@ -203,4 +203,3 @@ export class ReminderScheduler {
 }
 
 export const reminderScheduler = new ReminderScheduler();
-export const reminderScheduler = new ReminderScheduler();

@@ -338,25 +338,7 @@ export default function Calendar() {
     },
   });
 
-  const triggerRemindersMutation = useMutation({
-    mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/reminders");
-      return response;
-    },
-    onSuccess: () => {
-      toast({
-        title: "Test Promemoria",
-        description: "Controllo promemoria WhatsApp avviato - controlla i log del server",
-      });
-    },
-    onError: (error) => {
-      toast({
-        title: "Errore",
-        description: "Errore durante il test dei promemoria",
-        variant: "destructive",
-      });
-    },
-  });
+
 
   const updateAppointmentMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: any }) => {
@@ -1807,15 +1789,6 @@ export default function Calendar() {
                       Giorno
                     </Button>
                   </div>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => triggerRemindersMutation.mutate()}
-                    disabled={triggerRemindersMutation.isPending}
-                    className="text-blue-600 border-blue-200 hover:bg-blue-50 h-8 px-3 text-xs"
-                  >
-                    {triggerRemindersMutation.isPending ? "..." : "Test"}
-                  </Button>
                 </div>
               </div>
             </div>
@@ -1874,15 +1847,6 @@ export default function Calendar() {
                 </div>
                 <Button variant="outline" size="sm" onClick={navigateToday} className="h-9 px-4">
                   Oggi
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => triggerRemindersMutation.mutate()}
-                  disabled={triggerRemindersMutation.isPending}
-                  className="text-blue-600 border-blue-200 hover:bg-blue-50 h-9 px-4"
-                >
-                  {triggerRemindersMutation.isPending ? "Invio..." : "Test WhatsApp"}
                 </Button>
                 
                 {/* Color Legend - only in day view */}

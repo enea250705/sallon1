@@ -1313,11 +1313,31 @@ export default function Calendar() {
                                         onChange={(e) => field.onChange(Number(e.target.value))}
                                         className="w-full h-12 px-4 bg-gray-100 border-0 rounded-full text-base focus:outline-none focus:ring-2 focus:ring-blue-200 appearance-none"
                                       >
-                                        {Array.from({ length: 12 }, (_, i) => i + 8).map(hour => (
-                                          <option key={hour} value={hour}>
-                                            {hour.toString().padStart(2, '0')}
-                                          </option>
-                                        ))}
+                                        {(() => {
+                                          // Get current day's opening hours
+                                          const selectedDay = selectedDate ? format(selectedDate, 'EEEE').toLowerCase() : 'monday';
+                                          const dayHours = openingHours?.[selectedDay] || { openTime: '08:00', closeTime: '22:00', isOpen: true };
+                                          
+                                          if (!dayHours.isOpen) {
+                                            return <option value={9}>09</option>; // Fallback if closed
+                                          }
+                                          
+                                          // Parse opening and closing hours
+                                          const openHour = parseInt(dayHours.openTime.split(':')[0]);
+                                          const closeHour = parseInt(dayHours.closeTime.split(':')[0]);
+                                          
+                                          // Generate hours from open to close
+                                          const hours = [];
+                                          for (let hour = openHour; hour <= closeHour; hour++) {
+                                            hours.push(hour);
+                                          }
+                                          
+                                          return hours.map(hour => (
+                                            <option key={hour} value={hour}>
+                                              {hour.toString().padStart(2, '0')}
+                                            </option>
+                                          ));
+                                        })()}
                                       </select>
                                     </FormControl>
                                   </FormItem>

@@ -743,6 +743,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/reminders/trigger", isAuthenticated, async (req, res) => {
+    try {
+      const { reminderScheduler } = await import('./services/reminderScheduler');
+      await reminderScheduler.triggerManualReminder();
+      res.json({ 
+        message: "Manual reminder check triggered successfully",
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error("Error triggering manual reminder:", error);
+      res.status(500).json({ message: "Failed to trigger manual reminder" });
+    }
+  });
+
   // Message template routes
   app.get("/api/message-templates", isAuthenticated, async (req, res) => {
     try {

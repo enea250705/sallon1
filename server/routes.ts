@@ -757,6 +757,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/reminders/daily-trigger", isAuthenticated, async (req, res) => {
+    try {
+      const { dailyReminderService } = await import('./services/dailyReminderService');
+      await dailyReminderService.triggerManualReminder();
+      res.json({ 
+        message: "Daily reminder service triggered successfully (simulating 9:00 AM)",
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error("Error triggering daily reminder service:", error);
+      res.status(500).json({ message: "Failed to trigger daily reminder service" });
+    }
+  });
+
   // Message template routes
   app.get("/api/message-templates", isAuthenticated, async (req, res) => {
     try {

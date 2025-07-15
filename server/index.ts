@@ -77,12 +77,16 @@ app.use((req, res, next) => {
   // Use PORT environment variable or default to 5000
   const port = parseInt(process.env.PORT || "5000");
   
-  // Start WhatsApp reminder scheduler
-  reminderScheduler.startScheduler();
+  // Start daily reminder service (9:00 AM every day)
+  const { dailyReminderService } = await import("./services/dailyReminderService");
+  dailyReminderService.startDailyScheduler();
   
   // Start recurring reminder service
   console.log("🔔 Initializing recurring reminder service...");
   // The service starts automatically in its constructor
+  
+  // OLD: Start WhatsApp reminder scheduler (24h before - disabled for 9 AM system)
+  // reminderScheduler.startScheduler();
 
   // Bind to 0.0.0.0 for Render deployment
   const host = process.env.NODE_ENV === "production" ? "0.0.0.0" : "localhost";

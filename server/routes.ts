@@ -729,6 +729,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/reminders/:id/reset", isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const appointment = await storage.updateAppointment(id, { reminderSent: false });
+      if (!appointment) {
+        return res.status(404).json({ message: "Appointment not found" });
+      }
+      res.json({ message: "Reminder flag reset - can send reminder again" });
+    } catch (error) {
+      console.error("Error resetting reminder flag:", error);
+      res.status(500).json({ message: "Failed to reset reminder flag" });
+    }
+  });
+
   // Message template routes
   app.get("/api/message-templates", isAuthenticated, async (req, res) => {
     try {

@@ -153,27 +153,15 @@ A presto! ✨
   }
 
   /**
-   * Send WhatsApp message (placeholder implementation)
-   * In a real implementation, this would integrate with WhatsApp Business API
+   * Send WhatsApp message using the WhatsApp service
    */
   private async sendWhatsAppMessage(phoneNumber: string, message: string): Promise<boolean> {
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      // Log the message that would be sent
-      console.log(`📱 WhatsApp message to ${phoneNumber}:`);
-      console.log(`📝 Message: ${message}`);
-      console.log("---");
-
-      // For now, always return success
-      // In a real implementation, you would:
-      // 1. Format the phone number correctly
-      // 2. Call WhatsApp Business API
-      // 3. Handle API response and errors
-      // 4. Return actual success/failure status
-
-      return true;
+      // Import the WhatsApp service
+      const { whatsAppService } = await import('./whatsapp');
+      
+      // Send the message using the real WhatsApp service
+      return await whatsAppService.sendCustomMessage(phoneNumber, message);
     } catch (error) {
       console.error("❌ Error sending WhatsApp message:", error);
       return false;

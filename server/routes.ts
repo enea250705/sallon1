@@ -773,6 +773,69 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // WhatsApp service status route
+  app.get("/api/whatsapp/status", isAuthenticated, async (req, res) => {
+    try {
+      const { whatsAppService } = await import('./services/whatsapp');
+      const status = whatsAppService.getStatus();
+      res.json(status);
+    } catch (error) {
+      console.error("Error fetching WhatsApp status:", error);
+      res.status(500).json({ message: "Failed to fetch WhatsApp status" });
+    }
+  });
+
+  // Test WhatsApp message route (admin only)
+  app.post("/api/whatsapp/test", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const { phoneNumber, message } = req.body;
+      
+      if (!phoneNumber || !message) {
+        return res.status(400).json({ message: "Phone number and message are required" });
+      }
+
+      const { whatsAppService } = await import('./services/whatsapp');
+      const success = await whatsAppService.sendCustomMessage(phoneNumber, message);
+      
+      if (success) {
+        res.json({ message: "Test message sent successfully" });
+      } else {
+        res.status(500).json({ message: "Failed to send test message" });
+      }
+    } catch (error) {
+      console.error("Error sending test WhatsApp message:", error);
+      res.status(500).json({ message: "Failed to send test message" });
+    }
+  });
+
+  // Public test endpoint (no authentication required)
+  app.post("/api/whatsapp/test-public", async (req, res) => {
+    try {
+      const { phoneNumber, message } = req.body;
+      
+      if (!phoneNumber || !message) {
+        return res.status(400).json({ message: "Phone number and message are required" });
+      }
+
+      const { whatsAppService } = await import('./services/whatsapp');
+      
+      // Check WhatsApp status first
+      const status = whatsAppService.getStatus();
+      
+      // Send test message
+      const success = await whatsAppService.sendCustomMessage(phoneNumber, message);
+      
+      res.json({ 
+        message: success ? "Test message sent successfully" : "Failed to send test message",
+        success,
+        whatsappStatus: status
+      });
+    } catch (error) {
+      console.error("Error sending test WhatsApp message:", error);
+      res.status(500).json({ message: "Failed to send test message", error: error.message });
+    }
+  });
+
   // Dashboard statistics route
   app.get("/api/dashboard/stats", isAuthenticated, async (req, res) => {
     try {

@@ -24,14 +24,37 @@ interface ClientDailyReminder {
   appointments: ClientAppointment[];
 }
 
+interface WhatsAppAPIResponse {
+  messaging_product: string;
+  contacts: Array<{
+    input: string;
+    wa_id: string;
+  }>;
+  messages: Array<{
+    id: string;
+  }>;
+}
+
 export class WhatsAppService {
   private apiUrl: string;
-  private apiKey: string;
+  private accessToken: string;
+  private phoneNumberId: string;
+  private businessAccountId: string;
 
   constructor() {
-    // Mock WhatsApp API credentials - replace with real ones
-    this.apiUrl = "https://api.whatsapp.com/send"; // Mock URL
-    this.apiKey = "mock_api_key_replace_with_real_one";
+    // WhatsApp Business API configuration
+    this.apiUrl = "https://graph.facebook.com/v18.0";
+    this.accessToken = process.env.WHATSAPP_ACCESS_TOKEN || "";
+    this.phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID || "";
+    this.businessAccountId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || "";
+
+    // Validate required environment variables
+    if (!this.accessToken) {
+      console.warn("⚠️ WHATSAPP_ACCESS_TOKEN not configured - WhatsApp messages will be logged only");
+    }
+    if (!this.phoneNumberId) {
+      console.warn("⚠️ WHATSAPP_PHONE_NUMBER_ID not configured - WhatsApp messages will be logged only");
+    }
   }
 
   /**
@@ -58,31 +81,73 @@ export class WhatsAppService {
   }
 
   /**
-   * Sends a WhatsApp message (mock implementation)
+   * Formats phone number for WhatsApp API (removes spaces, ensures + prefix)
+   */
+  private formatPhoneNumber(phone: string): string {
+    // Remove all non-digit characters except +
+    let formatted = phone.replace(/[^\d+]/g, '');
+    
+    // Ensure it starts with +
+    if (!formatted.startsWith('+')) {
+      formatted = '+' + formatted;
+    }
+    
+    return formatted;
+  }
+
+  /**
+   * Sends a WhatsApp message using the real WhatsApp Business API
    */
   private async sendMessage(message: WhatsAppMessage): Promise<boolean> {
     try {
-      console.log(`📱 [WhatsApp Mock] Sending to ${message.to}:`);
+      const formattedPhone = this.formatPhoneNumber(message.to);
+      
+      console.log(`📱 [WhatsApp] Sending to ${formattedPhone}:`);
       console.log(`📝 [Message] ${message.message}`);
+
+      // If credentials are not configured, log the message and return success (for development)
+      if (!this.accessToken || !this.phoneNumberId) {
+        console.log("🔧 WhatsApp credentials not configured - message logged only");
+        return true;
+      }
+
+      // Prepare the API request
+      const url = `${this.apiUrl}/${this.phoneNumberId}/messages`;
+      const payload = {
+        messaging_product: "whatsapp",
+        to: formattedPhone,
+        type: "text",
+        text: {
+          body: message.message
+        }
+      };
+
+      // Make the API call
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`❌ WhatsApp API error (${response.status}):`, errorText);
+        return false;
+      }
+
+      const result: WhatsAppAPIResponse = await response.json();
       
-      // Mock API call - replace with real WhatsApp API integration
-      // const response = await fetch(this.apiUrl, {
-      //   method: 'POST',
-      //   headers: {
-      //     'Authorization': `Bearer ${this.apiKey}`,
-      //     'Content-Type': 'application/json',
-      //   },
-      //   body: JSON.stringify({
-      //     to: message.to,
-      //     type: 'text',
-      //     text: { body: message.message }
-      //   })
-      // });
-      
-      // return response.ok;
-      
-      // Mock success response
-      return true;
+      if (result.messages && result.messages.length > 0) {
+        console.log(`✅ WhatsApp message sent successfully. Message ID: ${result.messages[0].id}`);
+        return true;
+      } else {
+        console.error("❌ WhatsApp API returned no message ID");
+        return false;
+      }
+
     } catch (error) {
       console.error('❌ WhatsApp sending failed:', error);
       return false;
@@ -114,12 +179,35 @@ export class WhatsAppService {
   }
 
   /**
+   * Sends a custom message using a template from the database
+   */
+  async sendCustomMessage(phoneNumber: string, message: string): Promise<boolean> {
+    return await this.sendMessage({
+      to: phoneNumber,
+      message: message
+    });
+  }
+
+  /**
    * Validates phone number format
    */
   validatePhoneNumber(phone: string): boolean {
     // Basic phone number validation - adjust regex as needed
     const phoneRegex = /^\+?[1-9]\d{1,14}$/;
     return phoneRegex.test(phone.replace(/\s+/g, ''));
+  }
+
+  /**
+   * Get service status and configuration
+   */
+  getStatus() {
+    return {
+      configured: !!(this.accessToken && this.phoneNumberId),
+      hasAccessToken: !!this.accessToken,
+      hasPhoneNumberId: !!this.phoneNumberId,
+      hasBusinessAccountId: !!this.businessAccountId,
+      apiUrl: this.apiUrl
+    };
   }
 }
 

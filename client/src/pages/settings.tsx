@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, MessageSquare, Edit, Trash2, Settings as SettingsIcon, Clock, Calendar } from "lucide-react";
+import { Plus, MessageSquare, Edit, Trash2, Settings as SettingsIcon, Clock, Calendar, Smartphone, CheckCircle, XCircle, AlertCircle } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -73,6 +73,12 @@ export default function Settings() {
 
   const { data: templates, isLoading } = useQuery<MessageTemplate[]>({
     queryKey: ["/api/message-templates"],
+  });
+
+  // WhatsApp status query
+  const { data: whatsappStatus, isLoading: whatsappStatusLoading } = useQuery({
+    queryKey: ["/api/whatsapp/status"],
+    refetchInterval: 30000, // Refetch every 30 seconds
   });
 
   // Fetch opening hours
@@ -390,6 +396,100 @@ export default function Settings() {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* WhatsApp Status Section */}
+        <Card className="shadow-lg border-0">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <Smartphone className="h-5 w-5" />
+              <span>Stato WhatsApp</span>
+            </CardTitle>
+            <CardDescription>
+              Verifica la configurazione del servizio WhatsApp Business API
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {whatsappStatusLoading ? (
+              <div className="flex justify-center py-4">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-pink-600"></div>
+              </div>
+            ) : whatsappStatus ? (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-4 border rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    {whatsappStatus.configured ? (
+                      <CheckCircle className="h-5 w-5 text-green-600" />
+                    ) : (
+                      <XCircle className="h-5 w-5 text-red-600" />
+                    )}
+                    <div>
+                      <p className="font-medium text-gray-900">
+                        {whatsappStatus.configured ? "WhatsApp Configurato" : "WhatsApp Non Configurato"}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        {whatsappStatus.configured 
+                          ? "Il servizio è pronto per inviare messaggi" 
+                          : "Configura le credenziali WhatsApp per abilitare l'invio"
+                        }
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="flex items-center space-x-2 p-3 border rounded-lg">
+                    {whatsappStatus.hasAccessToken ? (
+                      <CheckCircle className="h-4 w-4 text-green-600" />
+                    ) : (
+                      <XCircle className="h-4 w-4 text-red-600" />
+                    )}
+                    <span className="text-sm font-medium">Access Token</span>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2 p-3 border rounded-lg">
+                    {whatsappStatus.hasPhoneNumberId ? (
+                      <CheckCircle className="h-4 w-4 text-green-600" />
+                    ) : (
+                      <XCircle className="h-4 w-4 text-red-600" />
+                    )}
+                    <span className="text-sm font-medium">Phone Number ID</span>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2 p-3 border rounded-lg">
+                    {whatsappStatus.hasBusinessAccountId ? (
+                      <CheckCircle className="h-4 w-4 text-green-600" />
+                    ) : (
+                      <AlertCircle className="h-4 w-4 text-yellow-600" />
+                    )}
+                    <span className="text-sm font-medium">Business Account ID</span>
+                  </div>
+                </div>
+
+                {!whatsappStatus.configured && (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                    <div className="flex items-start space-x-3">
+                      <AlertCircle className="h-5 w-5 text-yellow-600 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-medium text-yellow-800">
+                          Configurazione Richiesta
+                        </p>
+                        <p className="text-sm text-yellow-700 mt-1">
+                          Aggiungi le variabili d'ambiente WHATSAPP_ACCESS_TOKEN e WHATSAPP_PHONE_NUMBER_ID 
+                          al file deploy-config.env per abilitare l'invio di messaggi WhatsApp.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="text-center py-4 text-gray-500">
+                <AlertCircle className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                <p>Impossibile caricare lo stato WhatsApp</p>
               </div>
             )}
           </CardContent>

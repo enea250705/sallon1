@@ -82,14 +82,26 @@ export class WhatsAppService {
 
   /**
    * Formats phone number for WhatsApp API (removes spaces, ensures + prefix)
+   * Automatically adds +39 for Italian numbers
    */
   private formatPhoneNumber(phone: string): string {
     // Remove all non-digit characters except +
     let formatted = phone.replace(/[^\d+]/g, '');
     
-    // Ensure it starts with +
+    // If it doesn't start with +, add Italian country code
     if (!formatted.startsWith('+')) {
-      formatted = '+' + formatted;
+      // If it's a 10-digit number starting with 3, assume it's Italian mobile
+      if (formatted.length === 10 && formatted.startsWith('3')) {
+        formatted = '+39' + formatted;
+      }
+      // If it already has 39 prefix, just add +
+      else if (formatted.startsWith('39') && formatted.length === 12) {
+        formatted = '+' + formatted;
+      }
+      // Otherwise, assume Italian and add +39
+      else {
+        formatted = '+39' + formatted;
+      }
     }
     
     return formatted;
@@ -104,7 +116,7 @@ export class WhatsAppService {
       
       console.log(`📱 [WhatsApp] Sending to ${formattedPhone}:`);
       console.log(`📝 [Message] ${message.message}`);
-
+      
       // If credentials are not configured, log the message and return success (for development)
       if (!this.accessToken || !this.phoneNumberId) {
         console.log("🔧 WhatsApp credentials not configured - message logged only");
@@ -142,7 +154,7 @@ export class WhatsAppService {
       
       if (result.messages && result.messages.length > 0) {
         console.log(`✅ WhatsApp message sent successfully. Message ID: ${result.messages[0].id}`);
-        return true;
+      return true;
       } else {
         console.error("❌ WhatsApp API returned no message ID");
         return false;
@@ -190,11 +202,22 @@ export class WhatsAppService {
 
   /**
    * Validates phone number format
+   * Accepts Italian mobile numbers (10 digits starting with 3) and international format
    */
   validatePhoneNumber(phone: string): boolean {
-    // Basic phone number validation - adjust regex as needed
-    const phoneRegex = /^\+?[1-9]\d{1,14}$/;
-    return phoneRegex.test(phone.replace(/\s+/g, ''));
+    // Remove spaces for validation
+    const cleanPhone = phone.replace(/\s+/g, '');
+    
+    // Italian mobile number patterns
+    const italianMobileRegex = /^3\d{9}$/; // 10 digits starting with 3
+    const italianWithCountryRegex = /^39\d{10}$/; // 39 + 10 digits
+    const internationalRegex = /^\+39\d{10}$/; // +39 + 10 digits
+    const generalInternationalRegex = /^\+[1-9]\d{1,14}$/; // General international format
+    
+    return italianMobileRegex.test(cleanPhone) || 
+           italianWithCountryRegex.test(cleanPhone) ||
+           internationalRegex.test(cleanPhone) ||
+           generalInternationalRegex.test(cleanPhone);
   }
 
   /**

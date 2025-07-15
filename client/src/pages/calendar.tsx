@@ -1269,12 +1269,24 @@ export default function Calendar() {
                         render={({ field }) => (
                           <FormItem>
                               <FormControl>
-                              <input 
-                                {...field}
-                                  placeholder="Numero di telefono" 
-                                className="w-full h-12 px-4 bg-gray-100 border-0 rounded-full text-base placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                              <div className="flex w-full h-12 bg-gray-100 rounded-full border-0 focus-within:ring-2 focus-within:ring-blue-200">
+                                <div className="flex items-center px-4 text-gray-600 font-medium">
+                                  +39
+                                </div>
+                                <input 
+                                  {...field}
+                                  placeholder="376 102 4089" 
+                                  className="flex-1 bg-transparent text-base placeholder-gray-500 focus:outline-none pr-4"
                                   readOnly={form.watch("clientType") === "existing" && Boolean(form.watch("clientId"))}
-                              />
+                                  onChange={(e) => {
+                                    // Remove any non-digit characters and format
+                                    const value = e.target.value.replace(/[^\d]/g, '');
+                                    // Format as XXX XXX XXXX
+                                    const formatted = value.replace(/(\d{3})(\d{3})(\d{4})/, '$1 $2 $3');
+                                    field.onChange(value.length <= 10 ? formatted : field.value);
+                                  }}
+                                />
+                              </div>
                               </FormControl>
                           </FormItem>
                         )}

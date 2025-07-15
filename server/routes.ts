@@ -16,6 +16,7 @@ import {
   insertSalonExtraordinaryDaySchema,
 } from "@shared/schema";
 import { z } from "zod";
+import { formatPhoneForStorage } from "./lib/phone-utils";
 
 const isAuthenticated = (req: any, res: any, next: any) => {
   if (req.session.user) {
@@ -229,6 +230,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/clients", isAuthenticated, async (req, res) => {
     try {
       const validatedData = insertClientSchema.parse(req.body);
+      
+      // Format phone number for storage
+      if (validatedData.phone) {
+        validatedData.phone = formatPhoneForStorage(validatedData.phone);
+      }
+      
       const client = await storage.createClient(validatedData);
       res.status(201).json(client);
     } catch (error) {
@@ -244,6 +251,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const id = parseInt(req.params.id);
       const validatedData = insertClientSchema.partial().parse(req.body);
+      
+      // Format phone number for storage
+      if (validatedData.phone) {
+        validatedData.phone = formatPhoneForStorage(validatedData.phone);
+      }
+      
       const client = await storage.updateClient(id, validatedData);
       if (!client) {
         return res.status(404).json({ message: "Client not found" });

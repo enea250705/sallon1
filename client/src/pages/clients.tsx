@@ -232,7 +232,23 @@ export default function Clients() {
                       <FormItem>
                         <FormLabel>Telefono</FormLabel>
                         <FormControl>
-                          <Input placeholder="+39 123 456 7890" {...field} />
+                          <div className="flex">
+                            <div className="flex items-center px-3 bg-gray-50 border border-r-0 border-gray-300 rounded-l-md text-gray-600">
+                              +39
+                            </div>
+                            <Input 
+                              placeholder="376 102 4089" 
+                              {...field}
+                              className="rounded-l-none"
+                              onChange={(e) => {
+                                // Remove any non-digit characters and format
+                                const value = e.target.value.replace(/[^\d]/g, '');
+                                // Format as XXX XXX XXXX
+                                const formatted = value.replace(/(\d{3})(\d{3})(\d{4})/, '$1 $2 $3');
+                                field.onChange(value.length <= 10 ? formatted : field.value);
+                              }}
+                            />
+                          </div>
                         </FormControl>
                         <FormMessage />
                       </FormItem>

@@ -1202,6 +1202,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Debug reminder endpoint
+  app.get("/api/debug-reminder", isAuthenticated, async (req, res) => {
+    try {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const tomorrowStr = tomorrow.toISOString().split('T')[0];
+      
+      const appointments = await storage.getAppointmentsByDate(tomorrowStr);
+      
+      const results = appointments.map(apt => ({
+        id: apt.id,
+        clientName: `${apt.client?.firstName} ${apt.client?.lastName}`,
+        phone: apt.client?.phone,
+        time: apt.startTime,
+        service: apt.service?.name,
+        reminderSent: apt.reminderSent,
+        status: apt.status
+      }));
+      
+      return res.status(200).json({ 
+        date: tomorrowStr,
+        appointments: results,
+        totalAppointments: results.length,
+        remindersSent: results.filter(a => a.reminderSent).length,
+        remindersNeeded: results.filter(a => !a.reminderSent).length
+      });
+      
+    } catch (error) {
+      console.error('Error in debug reminder:', error);
+      return res.status(500).json({ error: error.message });
+    }
+  });
+
   // Health check endpoint for Docker
   app.get("/api/health", (req, res) => {
     res.status(200).json({ 

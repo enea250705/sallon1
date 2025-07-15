@@ -793,6 +793,82 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Test debug endpoint without authentication
+  app.get("/api/test/debug-reminder", async (req, res) => {
+    try {
+      console.log('🧪 Test debug endpoint called');
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const tomorrowStr = tomorrow.toISOString().split('T')[0];
+      
+      const appointments = await storage.getAppointmentsByDate(tomorrowStr);
+      
+      const results = appointments.map(apt => ({
+        id: apt.id,
+        clientName: `${apt.client?.firstName} ${apt.client?.lastName}`,
+        phone: apt.client?.phone,
+        time: apt.startTime,
+        service: apt.service?.name,
+        reminderSent: apt.reminderSent,
+        status: apt.status
+      }));
+      
+      return res.status(200).json({ 
+        date: tomorrowStr,
+        appointments: results,
+        totalAppointments: results.length,
+        remindersSent: results.filter(a => a.reminderSent).length,
+        remindersNeeded: results.filter(a => !a.reminderSent).length,
+        phoneNumbers: results
+          .filter(a => !a.reminderSent && a.phone && a.status === 'scheduled')
+          .map(a => ({ phone: a.phone, client: a.clientName, time: a.time }))
+      });
+      
+    } catch (error) {
+      console.error('Error in test debug reminder:', error);
+      return res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Endpoint specifico per controllare appuntamenti di dopodomani (quelli per cui manderà messaggi domani alle 9 AM)
+  app.get("/api/test/debug-thursday", async (req, res) => {
+    try {
+      console.log('🧪 Test debug Thursday appointments (day after tomorrow)');
+      const dayAfterTomorrow = new Date();
+      dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 2);
+      const thursdayStr = dayAfterTomorrow.toISOString().split('T')[0];
+      
+      const appointments = await storage.getAppointmentsByDate(thursdayStr);
+      
+      const results = appointments.map(apt => ({
+        id: apt.id,
+        clientName: `${apt.client?.firstName} ${apt.client?.lastName}`,
+        phone: apt.client?.phone,
+        time: apt.startTime,
+        service: apt.service?.name,
+        reminderSent: apt.reminderSent,
+        status: apt.status
+      }));
+      
+      return res.status(200).json({ 
+        date: thursdayStr,
+        dayName: dayAfterTomorrow.toLocaleDateString('it-IT', { weekday: 'long' }),
+        appointments: results,
+        totalAppointments: results.length,
+        remindersSent: results.filter(a => a.reminderSent).length,
+        remindersNeeded: results.filter(a => !a.reminderSent).length,
+        phoneNumbersToReceiveMessages: results
+          .filter(a => !a.reminderSent && a.phone && a.phone !== '000000' && a.phone !== '000000000000' && a.status === 'scheduled')
+          .map(a => ({ phone: a.phone, client: a.clientName, time: a.time, service: a.service })),
+        note: "Questi appuntamenti riceveranno messaggi WhatsApp DOMANI MATTINA alle 9:00 AM"
+      });
+      
+    } catch (error) {
+      console.error('Error in Thursday debug:', error);
+      return res.status(500).json({ error: error.message });
+    }
+  });
+
   // Message template routes
   app.get("/api/message-templates", isAuthenticated, async (req, res) => {
     try {

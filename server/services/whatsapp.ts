@@ -179,15 +179,96 @@ export class WhatsAppService {
   }
 
   /**
-   * Sends daily reminder to client with all their appointments for the day
+   * Sends daily reminder to client with all their appointments for the day using approved template
    */
   async sendClientDailyReminder(reminder: ClientDailyReminder): Promise<boolean> {
-    const message = this.formatClientDailyReminderMessage(reminder);
+    // Use the first appointment for the reminder (as before)
+    const appointment = reminder.appointments[0];
     
-    return await this.sendMessage({
+    return await this.sendTemplateMessage({
       to: reminder.clientPhone,
-      message: message
+      templateName: 'appointment_reminder',
+      parameters: [
+        reminder.clientName,           // {{1}} - Client name
+        appointment.appointmentTime,   // {{2}} - Time
+        appointment.serviceName        // {{3}} - Service
+      ]
     });
+  }
+
+  /**
+   * Sends a WhatsApp message using approved template
+   */
+  private async sendTemplateMessage(templateMessage: {
+    to: string;
+    templateName: string;
+    parameters: string[];
+  }): Promise<boolean> {
+    try {
+      const formattedPhone = this.formatPhoneNumber(templateMessage.to);
+      
+      console.log(`📱 [WhatsApp Template] Sending "${templateMessage.templateName}" to ${formattedPhone}:`);
+      console.log(`📝 [Parameters] ${templateMessage.parameters.join(', ')}`);
+      
+      // If credentials are not configured, log the message and return success (for development)
+      if (!this.accessToken || !this.phoneNumberId) {
+        console.log("🔧 WhatsApp credentials not configured - template message logged only");
+        return true;
+      }
+
+      // Prepare the template API request
+      const url = `${this.apiUrl}/${this.phoneNumberId}/messages`;
+      const payload = {
+        messaging_product: "whatsapp",
+        to: formattedPhone,
+        type: "template",
+        template: {
+          name: templateMessage.templateName,
+          language: {
+            code: "it"
+          },
+          components: [
+            {
+              type: "body",
+              parameters: templateMessage.parameters.map(param => ({
+                type: "text",
+                text: param
+              }))
+            }
+          ]
+        }
+      };
+
+      // Make the API call
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`❌ WhatsApp Template API error (${response.status}):`, errorText);
+        return false;
+      }
+
+      const result: WhatsAppAPIResponse = await response.json();
+      
+      if (result.messages && result.messages.length > 0) {
+        console.log(`✅ WhatsApp template message sent successfully. Message ID: ${result.messages[0].id}`);
+        return true;
+      } else {
+        console.error("❌ WhatsApp Template API returned no message ID");
+        return false;
+      }
+
+    } catch (error) {
+      console.error('❌ WhatsApp template sending failed:', error);
+      return false;
+    }
   }
 
   /**

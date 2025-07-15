@@ -771,6 +771,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Test endpoint without authentication for development
+  app.post("/api/test/daily-trigger", async (req, res) => {
+    try {
+      console.log('🧪 Test endpoint called: daily-trigger');
+      const { dailyReminderService } = await import('./services/dailyReminderService');
+      await dailyReminderService.triggerManualReminder();
+      res.json({ 
+        success: true,
+        message: "Daily reminder service triggered successfully (TEST MODE - simulating 9:00 AM)",
+        timestamp: new Date().toISOString(),
+        note: "This is a test endpoint without authentication"
+      });
+    } catch (error) {
+      console.error("Error triggering daily reminder service (test):", error);
+      res.status(500).json({ 
+        success: false,
+        message: "Failed to trigger daily reminder service",
+        error: error.message 
+      });
+    }
+  });
+
   // Message template routes
   app.get("/api/message-templates", isAuthenticated, async (req, res) => {
     try {

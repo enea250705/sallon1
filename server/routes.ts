@@ -869,6 +869,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Test endpoint for single WhatsApp message
+  app.get("/api/test/whatsapp-single", async (req, res) => {
+    try {
+      console.log('🧪 Test endpoint called: whatsapp-single');
+      
+      const { phone, name, time } = req.query;
+      
+      if (!phone || !name || !time) {
+        return res.status(400).json({ 
+          success: false,
+          message: "Missing required parameters: phone, name, time",
+          example: "/api/test/whatsapp-single?phone=3761024080&name=Test%20Cliente&time=10:30"
+        });
+      }
+      
+      const { whatsAppService } = await import('./services/whatsapp');
+      
+      console.log(`📱 Testing WhatsApp message to: ${phone}`);
+      console.log(`👤 Client name: ${name}`);
+      console.log(`⏰ Time: ${time}`);
+      
+      const testReminder = {
+        clientName: name,
+        clientPhone: phone,
+        appointments: [{
+          appointmentTime: time,
+          serviceName: "Test Service" // Not used in template
+        }]
+      };
+      
+      const success = await whatsAppService.sendClientDailyReminder(testReminder);
+      
+      if (success) {
+        console.log(`✅ Test message sent successfully to ${phone}`);
+        return res.status(200).json({ 
+          success: true,
+          message: `WhatsApp test message sent successfully`,
+          phone: `+39${phone}`,
+          clientName: name,
+          appointmentTime: time,
+          timestamp: new Date().toISOString()
+        });
+      } else {
+        console.log(`❌ Failed to send test message to ${phone}`);
+        return res.status(500).json({ 
+          success: false,
+          message: "Failed to send WhatsApp message",
+          phone: phone 
+        });
+      }
+      
+    } catch (error) {
+      console.error('Error in WhatsApp single test:', error);
+      return res.status(500).json({ 
+        success: false,
+        message: "Error sending test message",
+        error: error.message 
+      });
+    }
+  });
+
   // Message template routes
   app.get("/api/message-templates", isAuthenticated, async (req, res) => {
     try {

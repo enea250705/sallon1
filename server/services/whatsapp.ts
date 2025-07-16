@@ -190,8 +190,8 @@ export class WhatsAppService {
       templateName: 'appointment_reminder',
       parameters: [
         reminder.clientName,           // {{1}} - Client name
-        appointment.appointmentTime,   // {{2}} - Time
-        appointment.serviceName        // {{3}} - Service
+        appointment.appointmentTime    // {{2}} - Time
+        // Note: Service name removed - template only has 2 parameters
       ]
     });
   }

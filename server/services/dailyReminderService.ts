@@ -36,66 +36,106 @@ export class DailyReminderService {
       
       console.log(`📋 Found ${appointments.length} appointments for tomorrow`);
       
-      let remindersSent = 0;
-      let remindersSkipped = 0;
+      // Filter appointments that need reminders
+      const pendingReminders = appointments.filter((apt: any) => 
+        !apt.reminderSent && 
+        apt.status === 'scheduled' &&
+        apt.client.phone &&
+        whatsAppService.validatePhoneNumber(apt.client.phone)
+      );
       
-      for (const appointment of appointments) {
+      const invalidNumbers = appointments.filter((apt: any) => 
+        !apt.reminderSent && 
+        apt.status === 'scheduled' &&
+        (!apt.client.phone || !whatsAppService.validatePhoneNumber(apt.client.phone))
+      );
+      
+      const alreadySent = appointments.filter((apt: any) => apt.reminderSent);
+      const nonScheduled = appointments.filter((apt: any) => apt.status !== 'scheduled');
+      
+      console.log(`📊 Appointment breakdown:`);
+      console.log(`   ✅ Already sent: ${alreadySent.length}`);
+      console.log(`   📱 Ready to send: ${pendingReminders.length}`);
+      console.log(`   ⚠️ Invalid numbers: ${invalidNumbers.length}`);
+      console.log(`   ⏭️ Non-scheduled: ${nonScheduled.length}`);
+      
+      if (pendingReminders.length === 0) {
+        console.log(`✅ No reminders need to be sent`);
+        this.isRunning = false;
+        return;
+      }
+      
+      // Group appointments by client phone number to avoid duplicate messages
+      const clientGroups = new Map();
+      
+      pendingReminders.forEach(appointment => {
+        const clientKey = appointment.client.phone;
+        if (!clientGroups.has(clientKey)) {
+          clientGroups.set(clientKey, {
+            client: appointment.client,
+            appointments: []
+          });
+        }
+        clientGroups.get(clientKey).appointments.push(appointment);
+      });
+      
+      const uniqueClients = clientGroups.size;
+      console.log(`📱 Sending reminders to ${uniqueClients} unique clients (${pendingReminders.length} total appointments)`);
+      
+      let remindersSent = 0;
+      let remindersFailed = 0;
+      let appointmentsProcessed = 0;
+      
+      for (const [clientPhone, clientData] of Array.from(clientGroups)) {
         try {
-          // Skip if reminder already sent
-          if (appointment.reminderSent) {
-            console.log(`⏭️ Reminder already sent for ${appointment.client.firstName} ${appointment.client.lastName} at ${appointment.startTime}`);
-            remindersSkipped++;
-            continue;
+          const { client, appointments } = clientData;
+          const appointmentCount = appointments.length;
+          
+          if (appointmentCount === 1) {
+            console.log(`📱 Sending reminder to ${client.firstName} ${client.lastName} (${clientPhone}) for ${appointments[0].startTime} - ${appointments[0].service.name}`);
+          } else {
+            const times = appointments.map((apt: any) => `${apt.startTime} (${apt.service.name})`).join(', ');
+            console.log(`📱 Sending reminder to ${client.firstName} ${client.lastName} (${clientPhone}) for ${appointmentCount} appointments: ${times}`);
           }
           
-          // Skip if appointment is not scheduled
-          if (appointment.status !== 'scheduled') {
-            console.log(`⏭️ Skipping ${appointment.client.firstName} ${appointment.client.lastName} - status: ${appointment.status}`);
-            remindersSkipped++;
-            continue;
-          }
-          
-          // Validate phone number
-          if (!appointment.client.phone || !whatsAppService.validatePhoneNumber(appointment.client.phone)) {
-            console.log(`⚠️ Invalid phone number for ${appointment.client.firstName} ${appointment.client.lastName}: ${appointment.client.phone}`);
-            remindersSkipped++;
-            continue;
-          }
-          
-          // Send WhatsApp reminder using approved template
-          console.log(`📱 Sending reminder to ${appointment.client.firstName} ${appointment.client.lastName} (${appointment.client.phone}) for ${appointment.startTime}`);
-          
+          // Send ONE WhatsApp message per client with all their appointments
           const reminderSent = await whatsAppService.sendClientDailyReminder({
-            clientName: appointment.client.firstName,
-            clientPhone: appointment.client.phone,
-            appointments: [{
-              appointmentTime: appointment.startTime.slice(0, 5), // Format HH:MM
-              serviceName: appointment.service.name
-            }]
+            clientName: client.firstName,
+            clientPhone: client.phone,
+            appointments: appointments.map((apt: any) => ({
+              appointmentTime: apt.startTime.slice(0, 5), // Format HH:MM
+              serviceName: apt.service.name
+            }))
           });
           
           if (reminderSent) {
-            // Mark reminder as sent
-            await storage.markReminderSent(appointment.id);
+            // Mark ALL appointments for this client as sent
+            for (const appointment of appointments) {
+              await storage.markReminderSent(appointment.id);
+              appointmentsProcessed++;
+            }
             remindersSent++;
             
-            console.log(`✅ Reminder sent to ${appointment.client.firstName} ${appointment.client.lastName} for ${appointment.startTime}`);
+            console.log(`✅ Reminder sent and ${appointmentCount} appointment(s) marked as sent for ${client.firstName} ${client.lastName}`);
           } else {
-            console.log(`❌ Failed to send reminder to ${appointment.client.firstName} ${appointment.client.lastName}`);
+            remindersFailed++;
+            console.log(`❌ Failed to send reminder to ${client.firstName} ${client.lastName}`);
           }
           
           // Add small delay between messages to avoid rate limiting
           await new Promise(resolve => setTimeout(resolve, 2000));
           
         } catch (error) {
-          console.error(`❌ Error processing appointment ${appointment.id}:`, error);
+          remindersFailed++;
+          console.error(`❌ Error processing client ${clientPhone}:`, error);
         }
       }
       
       console.log(`📊 Daily reminder summary:`);
-      console.log(`   ✅ Reminders sent: ${remindersSent}`);
-      console.log(`   ⏭️ Reminders skipped: ${remindersSkipped}`);
-      console.log(`   📋 Total appointments: ${appointments.length}`);
+      console.log(`   ✅ Clients contacted: ${remindersSent}`);
+      console.log(`   📋 Appointments processed: ${appointmentsProcessed}`);
+      console.log(`   ❌ Failed to send: ${remindersFailed}`);
+      console.log(`   📅 Total appointments: ${appointments.length}`);
       
     } catch (error) {
       console.error('❌ Error in daily reminder service:', error);

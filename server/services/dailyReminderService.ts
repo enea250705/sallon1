@@ -25,6 +25,19 @@ export class DailyReminderService {
       
       console.log(`📅 Sending reminders for appointments on: ${tomorrowStr}`);
       
+      // OPTIMIZATION: Quick lightweight check first to avoid heavy queries
+      console.log('🔍 Quick check for pending reminders...');
+      const pendingCount = await storage.getPendingReminderCount(tomorrowStr);
+      
+      if (pendingCount === 0) {
+        console.log('✅ No pending reminders found - early exit (saved heavy database query!)');
+        console.log('💡 This optimization prevents unnecessary compute usage');
+        this.isRunning = false;
+        return;
+      }
+      
+      console.log(`📱 Found ${pendingCount} appointments needing reminders`);
+      
       // Get all appointments for tomorrow
       const appointments = await storage.getAppointmentsByDate(tomorrowStr);
       
@@ -85,6 +98,7 @@ export class DailyReminderService {
       let remindersSent = 0;
       let remindersFailed = 0;
       let appointmentsProcessed = 0;
+      const appointmentIdsToUpdate: number[] = [];
       
       for (const [clientPhone, clientData] of Array.from(clientGroups)) {
         try {
@@ -109,14 +123,14 @@ export class DailyReminderService {
           });
           
           if (reminderSent) {
-            // Mark ALL appointments for this client as sent
+            // OPTIMIZATION: Collect IDs for batch update instead of individual updates
             for (const appointment of appointments) {
-              await storage.markReminderSent(appointment.id);
+              appointmentIdsToUpdate.push(appointment.id);
               appointmentsProcessed++;
             }
             remindersSent++;
             
-            console.log(`✅ Reminder sent and ${appointmentCount} appointment(s) marked as sent for ${client.firstName} ${client.lastName}`);
+            console.log(`✅ Reminder sent and ${appointmentCount} appointment(s) marked for batch update`);
           } else {
             remindersFailed++;
             console.log(`❌ Failed to send reminder to ${client.firstName} ${client.lastName}`);
@@ -129,6 +143,13 @@ export class DailyReminderService {
           remindersFailed++;
           console.error(`❌ Error processing client ${clientPhone}:`, error);
         }
+      }
+      
+      // OPTIMIZATION: Batch update all successful reminders at once
+      if (appointmentIdsToUpdate.length > 0) {
+        console.log(`🔄 Batch updating ${appointmentIdsToUpdate.length} appointments...`);
+        await storage.batchMarkRemindersSent(appointmentIdsToUpdate);
+        console.log(`✅ Batch update completed (much more efficient than ${appointmentIdsToUpdate.length} individual updates)`);
       }
       
       console.log(`📊 Daily reminder summary:`);

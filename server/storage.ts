@@ -33,7 +33,7 @@ import {
   type SalonExtraordinaryDay,
   type InsertSalonExtraordinaryDay,
 } from "@shared/schema";
-import { eq, and, gte, lte, desc, asc, like, or } from "drizzle-orm";
+import { eq, and, gte, lte, desc, asc, like, or, inArray, count } from "drizzle-orm";
 import { db } from "./db";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
@@ -84,6 +84,10 @@ export interface IStorage {
   deleteAppointment(id: number): Promise<boolean>;
   getUpcomingAppointments(): Promise<AppointmentWithDetails[]>;
   markReminderSent(id: number): Promise<boolean>;
+  
+  // OPTIMIZATION METHODS: Reduce database usage for reminder system
+  getPendingReminderCount(date: string): Promise<number>;
+  batchMarkRemindersSent(appointmentIds: number[]): Promise<boolean>;
   
   // Message templates
   createMessageTemplate(template: InsertMessageTemplate): Promise<MessageTemplate>;
@@ -614,6 +618,31 @@ export class DatabaseStorage implements IStorage {
       .where(eq(appointments.id, id))
       .returning();
     return !!appointment;
+  }
+  
+  // OPTIMIZATION METHODS: Reduce database usage for reminder system
+  async getPendingReminderCount(date: string): Promise<number> {
+    const result = await db
+      .select({ count: count() })
+      .from(appointments)
+      .where(
+        and(
+          eq(appointments.date, date),
+          eq(appointments.status, "scheduled"),
+          eq(appointments.reminderSent, false)
+        )
+      );
+    return result[0]?.count || 0;
+  }
+
+  async batchMarkRemindersSent(appointmentIds: number[]): Promise<boolean> {
+    if (appointmentIds.length === 0) return true;
+    
+    const result = await db
+      .update(appointments)
+      .set({ reminderSent: true })
+      .where(inArray(appointments.id, appointmentIds));
+    return result.rowCount! > 0;
   }
 
   // Message templates

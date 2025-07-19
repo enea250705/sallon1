@@ -18,6 +18,115 @@ import {
 import { z } from "zod";
 import { formatPhoneForStorage } from "./lib/phone-utils";
 
+// WhatsApp webhook helper functions
+async function processWhatsAppMessageUpdates(value: any) {
+  // Process status updates (delivery receipts)
+  if (value.statuses && value.statuses.length > 0) {
+    for (const status of value.statuses) {
+      const messageStatus = {
+        messageId: status.id,
+        status: status.status,
+        timestamp: status.timestamp,
+        recipientPhone: status.recipient_id,
+        errorCode: status.errors?.[0]?.code,
+        errorMessage: status.errors?.[0]?.message
+      };
+      
+      console.log(`📊 Message status update:`, messageStatus);
+      
+      // Store message status in database
+      await storeWhatsAppMessageStatus(messageStatus);
+    }
+  }
+  
+  // Process incoming messages (optional - for future use)
+  if (value.messages && value.messages.length > 0) {
+    for (const message of value.messages) {
+      console.log(`📥 Incoming message from ${message.from}:`, message.text?.body);
+      // Could be used for handling customer replies in the future
+    }
+  }
+}
+
+async function storeWhatsAppMessageStatus(messageStatus: any) {
+  try {
+    // Create table if it doesn't exist
+    await storage.query(`
+      CREATE TABLE IF NOT EXISTS whatsapp_message_status (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        message_id TEXT NOT NULL,
+        status TEXT NOT NULL,
+        timestamp TEXT NOT NULL,
+        recipient_phone TEXT NOT NULL,
+        error_code INTEGER,
+        error_message TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(message_id, status) ON CONFLICT REPLACE
+      )
+    `);
+    
+    // Insert message status
+    await storage.query(`
+      INSERT OR REPLACE INTO whatsapp_message_status 
+      (message_id, status, timestamp, recipient_phone, error_code, error_message)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `, [
+      messageStatus.messageId,
+      messageStatus.status,
+      messageStatus.timestamp,
+      messageStatus.recipientPhone,
+      messageStatus.errorCode || null,
+      messageStatus.errorMessage || null
+    ]);
+    
+    console.log(`✅ Stored message status: ${messageStatus.messageId} -> ${messageStatus.status}`);
+    
+    // Log delivery failures for monitoring
+    if (messageStatus.status === 'failed') {
+      console.error(`🚨 Message delivery failed:`, {
+        messageId: messageStatus.messageId,
+        recipient: messageStatus.recipientPhone,
+        errorCode: messageStatus.errorCode,
+        errorMessage: messageStatus.errorMessage
+      });
+    }
+    
+  } catch (error) {
+    console.error('❌ Error storing message status:', error);
+  }
+}
+
+async function getWhatsAppDeliveryStats(dateFrom?: string, dateTo?: string) {
+  try {
+    let query = `
+      SELECT 
+        status,
+        COUNT(*) as count,
+        DATE(created_at) as date
+      FROM whatsapp_message_status
+    `;
+    
+    const params: string[] = [];
+    
+    if (dateFrom && dateTo) {
+      query += ` WHERE DATE(created_at) BETWEEN ? AND ?`;
+      params.push(dateFrom, dateTo);
+    } else if (dateFrom) {
+      query += ` WHERE DATE(created_at) >= ?`;
+      params.push(dateFrom);
+    }
+    
+    query += ` GROUP BY status, DATE(created_at) ORDER BY date DESC, status`;
+    
+    const result = await storage.query(query, params);
+    
+    return result;
+  } catch (error) {
+    console.error('❌ Error retrieving delivery stats:', error);
+    return [];
+  }
+}
+
 const isAuthenticated = (req: any, res: any, next: any) => {
   if (req.session.user) {
     next();
@@ -1462,6 +1571,119 @@ export async function registerRoutes(app: Express): Promise<Server> {
         success: false, 
         error: "Migration failed", 
         details: error instanceof Error ? error.message : "Unknown error" 
+      });
+    }
+  });
+
+  // WhatsApp webhook routes
+  app.get("/api/whatsapp-webhook", async (req, res) => {
+    // WhatsApp webhook verification
+    const { 'hub.mode': mode, 'hub.verify_token': token, 'hub.challenge': challenge } = req.query;
+    
+    const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN;
+    
+    console.log('🔗 WhatsApp webhook verification request:', { mode, token, challenge });
+    
+    if (mode === 'subscribe' && token === VERIFY_TOKEN) {
+      console.log('✅ WhatsApp webhook verified successfully');
+      return res.status(200).send(challenge as string);
+    } else {
+      console.error('❌ WhatsApp webhook verification failed');
+      return res.status(403).send('Forbidden');
+    }
+  });
+
+  app.post("/api/whatsapp-webhook", async (req, res) => {
+    try {
+      const body = req.body;
+      
+      console.log('📨 WhatsApp webhook received:', JSON.stringify(body, null, 2));
+      
+      // Validate webhook structure
+      if (!body.object || body.object !== 'whatsapp_business_account') {
+        console.log('⚠️ Invalid webhook object type:', body.object);
+        return res.status(200).send('OK');
+      }
+      
+      // Process each entry
+      for (const entry of body.entry) {
+        for (const change of entry.changes) {
+          if (change.field === 'messages') {
+            await processWhatsAppMessageUpdates(change.value);
+          }
+        }
+      }
+      
+      return res.status(200).send('OK');
+      
+    } catch (error) {
+      console.error('❌ Error processing WhatsApp webhook:', error);
+      return res.status(500).send('Internal Server Error');
+    }
+  });
+
+  // WhatsApp statistics endpoint
+  app.get("/api/whatsapp-stats", isAuthenticated, async (req, res) => {
+    try {
+      const { dateFrom, dateTo, phone } = req.query;
+      
+      const { whatsAppService } = await import('./services/whatsapp');
+      
+      // Get message delivery status
+      const messageStatus = await whatsAppService.getMessageDeliveryStatus(
+        phone as string || undefined,
+        dateFrom as string || undefined,
+        dateTo as string || undefined
+      );
+      
+      // Get aggregated delivery statistics
+      const deliveryStats = await getWhatsAppDeliveryStats(
+        dateFrom as string || undefined,
+        dateTo as string || undefined
+      );
+      
+      // Calculate summary statistics
+      const summary = {
+        total: messageStatus.length,
+        sent: messageStatus.filter((m: any) => m.current_status === 'sent').length,
+        delivered: messageStatus.filter((m: any) => m.current_status === 'delivered').length,
+        read: messageStatus.filter((m: any) => m.current_status === 'read').length,
+        failed: messageStatus.filter((m: any) => m.current_status === 'failed').length,
+        pending: messageStatus.filter((m: any) => m.current_status === 'pending').length
+      };
+      
+      // Group failed messages by error code for analysis
+      const failedMessages = messageStatus.filter((m: any) => m.current_status === 'failed');
+      const errorAnalysis = failedMessages.reduce((acc: any, msg: any) => {
+        const errorCode = msg.error_code || 'unknown';
+        if (!acc[errorCode]) {
+          acc[errorCode] = {
+            count: 0,
+            errorMessage: msg.error_message || 'Unknown error',
+            recipients: []
+          };
+        }
+        acc[errorCode].count++;
+        acc[errorCode].recipients.push(msg.recipient_phone);
+        return acc;
+      }, {});
+      
+      return res.status(200).json({
+        success: true,
+        data: {
+          summary,
+          messages: messageStatus,
+          deliveryStats,
+          errorAnalysis,
+          whatsappStatus: whatsAppService.getStatus()
+        }
+      });
+      
+    } catch (error) {
+      console.error('❌ Error retrieving WhatsApp statistics:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to retrieve statistics'
       });
     }
   });

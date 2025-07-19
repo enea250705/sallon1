@@ -1712,7 +1712,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         },
         database_connection: "Available",
         note: "Webhook is ready to receive delivery status updates from Meta. Tables will be created automatically when first message is sent.",
-        test_webhook: "Webhook verification works - ready for Meta Business configuration"
+        test_webhook: "Webhook verification works - ready for Meta Business configuration",
+        timestamp: new Date().toISOString()
       });
       
     } catch (error) {

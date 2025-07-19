@@ -1,6 +1,6 @@
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
-import { storage } from '../storage';
+import { pool } from '../db';
 
 interface WhatsAppMessage {
   to: string;
@@ -318,24 +318,24 @@ export class WhatsAppService {
    */
   private async storeMessageForTracking(messageId: string, recipientPhone: string, messageContent: string): Promise<void> {
     try {
-      // Create table if it doesn't exist
-      await storage.query(`
+      // Create table if it doesn't exist (PostgreSQL syntax)
+      await pool.query(`
         CREATE TABLE IF NOT EXISTS whatsapp_sent_messages (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          id SERIAL PRIMARY KEY,
           message_id TEXT NOT NULL UNIQUE,
           recipient_phone TEXT NOT NULL,
           message_content TEXT NOT NULL,
-          sent_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           last_status TEXT DEFAULT 'sent',
-          last_status_update DATETIME DEFAULT CURRENT_TIMESTAMP
+          last_status_update TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
       `);
       
       // Insert sent message
-      await storage.query(`
+      await pool.query(`
         INSERT INTO whatsapp_sent_messages 
         (message_id, recipient_phone, message_content)
-        VALUES (?, ?, ?)
+        VALUES ($1, $2, $3)
       `, [messageId, recipientPhone, messageContent]);
       
       console.log(`📊 Message ${messageId} stored for tracking`);
@@ -366,26 +366,30 @@ export class WhatsAppService {
       `;
       
       const params: (string | number)[] = [];
+      let paramIndex = 1;
       
       if (recipientPhone) {
-        query += ` AND sm.recipient_phone = ?`;
+        query += ` AND sm.recipient_phone = $${paramIndex}`;
         params.push(recipientPhone);
+        paramIndex++;
       }
       
       if (dateFrom) {
-        query += ` AND DATE(sm.sent_at) >= ?`;
+        query += ` AND DATE(sm.sent_at) >= $${paramIndex}`;
         params.push(dateFrom);
+        paramIndex++;
       }
       
       if (dateTo) {
-        query += ` AND DATE(sm.sent_at) <= ?`;
+        query += ` AND DATE(sm.sent_at) <= $${paramIndex}`;
         params.push(dateTo);
+        paramIndex++;
       }
       
       query += ` ORDER BY sm.sent_at DESC`;
       
-      const result = await storage.query(query, params);
-      return result;
+      const result = await pool.query(query, params);
+      return result.rows;
       
     } catch (error) {
       console.error('❌ Error retrieving message delivery status:', error);

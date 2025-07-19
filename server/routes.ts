@@ -17,6 +17,7 @@ import {
 } from "@shared/schema";
 import { z } from "zod";
 import { formatPhoneForStorage } from "./lib/phone-utils";
+import { pool } from "./db";
 
 // WhatsApp webhook helper functions
 async function processWhatsAppMessageUpdates(value: any) {
@@ -50,26 +51,32 @@ async function processWhatsAppMessageUpdates(value: any) {
 
 async function storeWhatsAppMessageStatus(messageStatus: any) {
   try {
-    // Create table if it doesn't exist
-    await storage.query(`
+    // Create table if it doesn't exist (PostgreSQL syntax)
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS whatsapp_message_status (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         message_id TEXT NOT NULL,
         status TEXT NOT NULL,
         timestamp TEXT NOT NULL,
         recipient_phone TEXT NOT NULL,
         error_code INTEGER,
         error_message TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(message_id, status) ON CONFLICT REPLACE
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(message_id, status)
       )
     `);
     
-    // Insert message status
-    await storage.query(`
-      INSERT OR REPLACE INTO whatsapp_message_status 
+    // Insert message status (PostgreSQL UPSERT)
+    await pool.query(`
+      INSERT INTO whatsapp_message_status 
       (message_id, status, timestamp, recipient_phone, error_code, error_message)
-      VALUES (?, ?, ?, ?, ?, ?)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      ON CONFLICT (message_id, status) 
+      DO UPDATE SET 
+        timestamp = EXCLUDED.timestamp,
+        error_code = EXCLUDED.error_code,
+        error_message = EXCLUDED.error_message,
+        created_at = CURRENT_TIMESTAMP
     `, [
       messageStatus.messageId,
       messageStatus.status,
@@ -107,20 +114,23 @@ async function getWhatsAppDeliveryStats(dateFrom?: string, dateTo?: string) {
     `;
     
     const params: string[] = [];
+    let paramIndex = 1;
     
     if (dateFrom && dateTo) {
-      query += ` WHERE DATE(created_at) BETWEEN ? AND ?`;
+      query += ` WHERE DATE(created_at) BETWEEN $${paramIndex} AND $${paramIndex + 1}`;
       params.push(dateFrom, dateTo);
+      paramIndex += 2;
     } else if (dateFrom) {
-      query += ` WHERE DATE(created_at) >= ?`;
+      query += ` WHERE DATE(created_at) >= $${paramIndex}`;
       params.push(dateFrom);
+      paramIndex++;
     }
     
     query += ` GROUP BY status, DATE(created_at) ORDER BY date DESC, status`;
     
-    const result = await storage.query(query, params);
+    const result = await pool.query(query, params);
     
-    return result;
+    return result.rows;
   } catch (error) {
     console.error('❌ Error retrieving delivery stats:', error);
     return [];
@@ -1691,39 +1701,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Test endpoint to check webhook data (no auth required)
   app.get("/api/test/webhook-status", async (req, res) => {
     try {
-      // Check if webhook tables exist
-      const sentMessages = await storage.query(`
-        SELECT COUNT(*) as count FROM whatsapp_sent_messages
-      `).catch(() => ({ count: 0 }));
+      // Check if webhook tables exist and get counts
+      let sentMessages, statusUpdates, recentMessages;
       
-      const statusUpdates = await storage.query(`
-        SELECT COUNT(*) as count FROM whatsapp_message_status
-      `).catch(() => ({ count: 0 }));
+      try {
+        const sentResult = await pool.query(`SELECT COUNT(*) as count FROM whatsapp_sent_messages`);
+        sentMessages = sentResult.rows[0];
+      } catch {
+        sentMessages = { count: 0 };
+      }
       
-      // Get recent webhook activity
-      const recentMessages = await storage.query(`
-        SELECT 
-          sm.message_id,
-          sm.recipient_phone,
-          sm.sent_at,
-          COALESCE(ms.status, 'pending') as current_status,
-          ms.timestamp as status_timestamp
-        FROM whatsapp_sent_messages sm
-        LEFT JOIN whatsapp_message_status ms ON sm.message_id = ms.message_id
-        ORDER BY sm.sent_at DESC
-        LIMIT 10
-      `).catch(() => []);
+      try {
+        const statusResult = await pool.query(`SELECT COUNT(*) as count FROM whatsapp_message_status`);
+        statusUpdates = statusResult.rows[0];
+      } catch {
+        statusUpdates = { count: 0 };
+      }
+      
+      try {
+        // Get recent webhook activity
+        const recentResult = await pool.query(`
+          SELECT 
+            sm.message_id,
+            sm.recipient_phone,
+            sm.sent_at,
+            COALESCE(ms.status, 'pending') as current_status,
+            ms.timestamp as status_timestamp
+          FROM whatsapp_sent_messages sm
+          LEFT JOIN whatsapp_message_status ms ON sm.message_id = ms.message_id
+          ORDER BY sm.sent_at DESC
+          LIMIT 10
+        `);
+        recentMessages = recentResult.rows;
+      } catch {
+        recentMessages = [];
+      }
       
       res.json({
         success: true,
         webhook_configured: true,
-        tables_created: true,
+        tables_exist: {
+          sent_messages: sentMessages.count > 0 || sentMessages.count === 0,
+          status_updates: statusUpdates.count > 0 || statusUpdates.count === 0
+        },
         stats: {
-          total_messages_sent: sentMessages[0]?.count || 0,
-          total_status_updates: statusUpdates[0]?.count || 0
+          total_messages_sent: parseInt(sentMessages.count) || 0,
+          total_status_updates: parseInt(statusUpdates.count) || 0
         },
         recent_activity: recentMessages,
-        note: "Webhook is passive - it only logs when Meta sends delivery updates"
+        webhook_url: "https://sallon1-1.onrender.com/api/whatsapp-webhook",
+        note: "Webhook is passive - it only logs when Meta sends delivery updates. Tables will be created when first message is sent."
       });
       
     } catch (error) {

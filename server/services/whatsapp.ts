@@ -1,5 +1,6 @@
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
+import { storage } from '../storage';
 
 interface WhatsAppMessage {
   to: string;
@@ -153,8 +154,13 @@ export class WhatsAppService {
       const result: WhatsAppAPIResponse = await response.json();
       
       if (result.messages && result.messages.length > 0) {
-        console.log(`✅ WhatsApp message sent successfully. Message ID: ${result.messages[0].id}`);
-      return true;
+        const messageId = result.messages[0].id;
+        console.log(`✅ WhatsApp message sent successfully. Message ID: ${messageId}`);
+        
+        // Store message for tracking
+        await this.storeMessageForTracking(messageId, formattedPhone, message.message);
+        
+        return true;
       } else {
         console.error("❌ WhatsApp API returned no message ID");
         return false;
@@ -258,7 +264,13 @@ export class WhatsAppService {
       const result: WhatsAppAPIResponse = await response.json();
       
       if (result.messages && result.messages.length > 0) {
-        console.log(`✅ WhatsApp template message sent successfully. Message ID: ${result.messages[0].id}`);
+        const messageId = result.messages[0].id;
+        console.log(`✅ WhatsApp template message sent successfully. Message ID: ${messageId}`);
+        
+        // Store template message for tracking
+        const templateText = `Template: ${templateMessage.templateName} with params: ${templateMessage.parameters.join(', ')}`;
+        await this.storeMessageForTracking(messageId, formattedPhone, templateText);
+        
         return true;
       } else {
         console.error("❌ WhatsApp Template API returned no message ID");
@@ -299,6 +311,86 @@ export class WhatsAppService {
            italianWithCountryRegex.test(cleanPhone) ||
            internationalRegex.test(cleanPhone) ||
            generalInternationalRegex.test(cleanPhone);
+  }
+
+  /**
+   * Store message information for delivery tracking
+   */
+  private async storeMessageForTracking(messageId: string, recipientPhone: string, messageContent: string): Promise<void> {
+    try {
+      // Create table if it doesn't exist
+      await storage.query(`
+        CREATE TABLE IF NOT EXISTS whatsapp_sent_messages (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          message_id TEXT NOT NULL UNIQUE,
+          recipient_phone TEXT NOT NULL,
+          message_content TEXT NOT NULL,
+          sent_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          last_status TEXT DEFAULT 'sent',
+          last_status_update DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      
+      // Insert sent message
+      await storage.query(`
+        INSERT INTO whatsapp_sent_messages 
+        (message_id, recipient_phone, message_content)
+        VALUES (?, ?, ?)
+      `, [messageId, recipientPhone, messageContent]);
+      
+      console.log(`📊 Message ${messageId} stored for tracking`);
+      
+    } catch (error) {
+      console.error('❌ Error storing message for tracking:', error);
+    }
+  }
+
+  /**
+   * Get delivery status for messages sent to a specific phone number
+   */
+  async getMessageDeliveryStatus(recipientPhone?: string, dateFrom?: string, dateTo?: string) {
+    try {
+      let query = `
+        SELECT 
+          sm.message_id,
+          sm.recipient_phone,
+          sm.message_content,
+          sm.sent_at,
+          COALESCE(ms.status, 'pending') as current_status,
+          ms.timestamp as status_timestamp,
+          ms.error_code,
+          ms.error_message
+        FROM whatsapp_sent_messages sm
+        LEFT JOIN whatsapp_message_status ms ON sm.message_id = ms.message_id
+        WHERE 1=1
+      `;
+      
+      const params: (string | number)[] = [];
+      
+      if (recipientPhone) {
+        query += ` AND sm.recipient_phone = ?`;
+        params.push(recipientPhone);
+      }
+      
+      if (dateFrom) {
+        query += ` AND DATE(sm.sent_at) >= ?`;
+        params.push(dateFrom);
+      }
+      
+      if (dateTo) {
+        query += ` AND DATE(sm.sent_at) <= ?`;
+        params.push(dateTo);
+      }
+      
+      query += ` ORDER BY sm.sent_at DESC`;
+      
+      const result = await storage.query(query, params);
+      return result;
+      
+    } catch (error) {
+      console.error('❌ Error retrieving message delivery status:', error);
+      return [];
+    }
   }
 
   /**

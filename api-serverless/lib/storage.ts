@@ -47,7 +47,7 @@ export class ServerlessStorage {
 
   async deleteUser(id: number): Promise<boolean> {
     const result = await db().delete(users).where(eq(users.id, id));
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   }
 
   // Client management
@@ -89,7 +89,7 @@ export class ServerlessStorage {
 
   async deleteClient(id: number): Promise<boolean> {
     const result = await db().delete(clients).where(eq(clients.id, id));
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   }
 
   // Service management
@@ -121,7 +121,7 @@ export class ServerlessStorage {
 
   async deleteService(id: number): Promise<boolean> {
     const result = await db().delete(services).where(eq(services.id, id));
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   }
 
   // Stylist management
@@ -153,7 +153,7 @@ export class ServerlessStorage {
 
   async deleteStylist(id: number): Promise<boolean> {
     const result = await db().delete(stylists).where(eq(stylists.id, id));
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   }
 
   // Stylist working hours management
@@ -195,7 +195,7 @@ export class ServerlessStorage {
 
   async deleteStylistWorkingHours(id: number): Promise<boolean> {
     const result = await db().delete(stylistWorkingHours).where(eq(stylistWorkingHours.id, id));
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   }
 
   async upsertStylistWorkingHours(
@@ -329,6 +329,7 @@ export class ServerlessStorage {
         notes: appointments.notes,
         reminderSent: appointments.reminderSent,
         createdAt: appointments.createdAt,
+        updatedAt: appointments.updatedAt,
         client: clients,
         stylist: stylists,
         service: services,
@@ -356,6 +357,7 @@ export class ServerlessStorage {
         notes: appointments.notes,
         reminderSent: appointments.reminderSent,
         createdAt: appointments.createdAt,
+        updatedAt: appointments.updatedAt,
         client: clients,
         stylist: stylists,
         service: services,
@@ -381,6 +383,7 @@ export class ServerlessStorage {
         notes: appointments.notes,
         reminderSent: appointments.reminderSent,
         createdAt: appointments.createdAt,
+        updatedAt: appointments.updatedAt,
         client: clients,
         stylist: stylists,
         service: services,
@@ -407,6 +410,7 @@ export class ServerlessStorage {
         notes: appointments.notes,
         reminderSent: appointments.reminderSent,
         createdAt: appointments.createdAt,
+        updatedAt: appointments.updatedAt,
         client: clients,
         stylist: stylists,
         service: services,
@@ -430,7 +434,7 @@ export class ServerlessStorage {
 
   async deleteAppointment(id: number): Promise<boolean> {
     const result = await db().delete(appointments).where(eq(appointments.id, id));
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   }
 
   async getUpcomingAppointments(): Promise<AppointmentWithDetails[]> {
@@ -448,6 +452,7 @@ export class ServerlessStorage {
         notes: appointments.notes,
         reminderSent: appointments.reminderSent,
         createdAt: appointments.createdAt,
+        updatedAt: appointments.updatedAt,
         client: clients,
         stylist: stylists,
         service: services,
@@ -465,7 +470,7 @@ export class ServerlessStorage {
       .update(appointments)
       .set({ reminderSent: true })
       .where(eq(appointments.id, id));
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   }
 
   // Initialize default salon settings if they don't exist
@@ -640,7 +645,7 @@ export class ServerlessStorage {
   }
 
   async getAllStylistVacations(): Promise<StylistVacationWithDetails[]> {
-    return await db()
+    const results = await db()
       .select({
         id: stylistVacations.id,
         stylistId: stylistVacations.stylistId,
@@ -657,6 +662,11 @@ export class ServerlessStorage {
       .leftJoin(stylists, eq(stylistVacations.stylistId, stylists.id))
       .where(eq(stylistVacations.isActive, true))
       .orderBy(stylistVacations.startDate);
+    
+    // Filter out results where stylist is null and properly type them
+    return results.filter((result): result is StylistVacationWithDetails => 
+      result.stylist !== null
+    ) as StylistVacationWithDetails[];
   }
 
   async updateStylistVacation(id: number, vacationData: Partial<InsertStylistVacation>): Promise<StylistVacation | undefined> {
@@ -673,7 +683,7 @@ export class ServerlessStorage {
       .update(stylistVacations)
       .set({ isActive: false, updatedAt: new Date() })
       .where(eq(stylistVacations.id, id));
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   }
 
   async isStylistOnVacation(stylistId: number, date: string): Promise<boolean> {
@@ -740,7 +750,7 @@ export class ServerlessStorage {
 
   async deleteSalonExtraordinaryDay(date: string): Promise<boolean> {
     const result = await db().delete(salonExtraordinaryDays).where(eq(salonExtraordinaryDays.date, date));
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   }
 
   async isSalonClosedOnDate(date: string): Promise<boolean> {
@@ -748,7 +758,7 @@ export class ServerlessStorage {
     return extraordinaryDay?.isClosed || false;
   }
 
-  // =================== ENHANCED WORKING HOURS WITH DOUBLE SHIFTS ===================
+  // =================== BASIC WORKING HOURS MANAGEMENT ===================
 
   async isStylistWorkingAdvanced(stylistId: number, dayOfWeek: number, time: string): Promise<{
     isWorking: boolean;
@@ -784,79 +794,7 @@ export class ServerlessStorage {
     const [hour, minute] = time.split(':').map(Number);
     const timeMinutes = hour * 60 + minute;
 
-    // Check morning shift
-    if (workingHours.morningStart && workingHours.morningEnd) {
-      const [morningStartHour, morningStartMinute] = workingHours.morningStart.split(':').map(Number);
-      const morningStartMinutes = morningStartHour * 60 + morningStartMinute;
-
-      const [morningEndHour, morningEndMinute] = workingHours.morningEnd.split(':').map(Number);
-      const morningEndMinutes = morningEndHour * 60 + morningEndMinute;
-
-      if (timeMinutes >= morningStartMinutes && timeMinutes < morningEndMinutes) {
-        // Check morning break
-        if (workingHours.morningBreakStart && workingHours.morningBreakEnd) {
-          const [breakStartHour, breakStartMinute] = workingHours.morningBreakStart.split(':').map(Number);
-          const breakStartMinutes = breakStartHour * 60 + breakStartMinute;
-
-          const [breakEndHour, breakEndMinute] = workingHours.morningBreakEnd.split(':').map(Number);
-          const breakEndMinutes = breakEndHour * 60 + breakEndMinute;
-
-          if (timeMinutes >= breakStartMinutes && timeMinutes < breakEndMinutes) {
-            return {
-              isWorking: false,
-              isOnBreak: true,
-              currentShift: 'morning',
-              status: 'on_break'
-            };
-          }
-        }
-
-        return {
-          isWorking: true,
-          isOnBreak: false,
-          currentShift: 'morning',
-          status: 'working'
-        };
-      }
-    }
-
-    // Check afternoon shift
-    if (workingHours.afternoonStart && workingHours.afternoonEnd) {
-      const [afternoonStartHour, afternoonStartMinute] = workingHours.afternoonStart.split(':').map(Number);
-      const afternoonStartMinutes = afternoonStartHour * 60 + afternoonStartMinute;
-
-      const [afternoonEndHour, afternoonEndMinute] = workingHours.afternoonEnd.split(':').map(Number);
-      const afternoonEndMinutes = afternoonEndHour * 60 + afternoonEndMinute;
-
-      if (timeMinutes >= afternoonStartMinutes && timeMinutes < afternoonEndMinutes) {
-        // Check afternoon break
-        if (workingHours.afternoonBreakStart && workingHours.afternoonBreakEnd) {
-          const [breakStartHour, breakStartMinute] = workingHours.afternoonBreakStart.split(':').map(Number);
-          const breakStartMinutes = breakStartHour * 60 + breakStartMinute;
-
-          const [breakEndHour, breakEndMinute] = workingHours.afternoonBreakEnd.split(':').map(Number);
-          const breakEndMinutes = breakEndHour * 60 + breakEndMinute;
-
-          if (timeMinutes >= breakStartMinutes && timeMinutes < breakEndMinutes) {
-            return {
-              isWorking: false,
-              isOnBreak: true,
-              currentShift: 'afternoon',
-              status: 'on_break'
-            };
-          }
-        }
-
-        return {
-          isWorking: true,
-          isOnBreak: false,
-          currentShift: 'afternoon',
-          status: 'working'
-        };
-      }
-    }
-
-    // Fall back to legacy single shift check for backward compatibility
+    // Use basic single shift check 
     const [startHour, startMinute] = workingHours.startTime.split(':').map(Number);
     const startMinutes = startHour * 60 + startMinute;
 
@@ -874,7 +812,7 @@ export class ServerlessStorage {
       };
     }
 
-    // Check legacy break time
+    // Check break time
     if (workingHours.breakStartTime && workingHours.breakEndTime) {
       const [breakStartHour, breakStartMinute] = workingHours.breakStartTime.split(':').map(Number);
       const breakStartMinutes = breakStartHour * 60 + breakStartMinute;
@@ -900,7 +838,12 @@ export class ServerlessStorage {
     };
   }
 
-  // =================== RECURRING REMINDERS FIX ===================
+  // =================== RECURRING REMINDERS MANAGEMENT ===================
+
+  async getRecurringReminder(id: number): Promise<RecurringReminder | undefined> {
+    const [reminder] = await db().select().from(recurringReminders).where(eq(recurringReminders.id, id));
+    return reminder || undefined;
+  }
 
   async deleteRecurringReminderCompletely(id: number): Promise<boolean> {
     try {
@@ -931,7 +874,7 @@ export class ServerlessStorage {
       const result = await db().delete(recurringReminders).where(eq(recurringReminders.id, id));
       
       console.log(`✅ Deleted recurring reminder ${id} and cleaned up related appointments`);
-      return result.rowCount > 0;
+      return (result.rowCount ?? 0) > 0;
     } catch (error) {
       console.error('Error deleting recurring reminder completely:', error);
       return false;

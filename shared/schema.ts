@@ -118,6 +118,16 @@ export const appointments = pgTable("appointments", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Salon settings table for global salon configuration
+export const salonSettings = pgTable("salon_settings", {
+  id: serial("id").primaryKey(),
+  settingKey: varchar("setting_key", { length: 100 }).notNull().unique(),
+  settingValue: text("setting_value").notNull(),
+  description: text("description"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // WhatsApp message templates
 export const messageTemplates = pgTable("message_templates", {
   id: serial("id").primaryKey(),
@@ -210,6 +220,12 @@ export const insertStylistVacationSchema = createInsertSchema(stylistVacations).
   updatedAt: true,
 });
 
+export const insertSalonSettingSchema = createInsertSchema(salonSettings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertSalonExtraordinaryDaySchema = z.object({
   date: z.string(),
   reason: z.string().min(1, "La motivazione è richiesta"),
@@ -247,14 +263,17 @@ export type InsertRecurringReminder = z.infer<typeof insertRecurringReminderSche
 export type StylistVacation = typeof stylistVacations.$inferSelect;
 export type InsertStylistVacation = z.infer<typeof insertStylistVacationSchema>;
 
+export type SalonSetting = typeof salonSettings.$inferSelect;
+export type InsertSalonSetting = z.infer<typeof insertSalonSettingSchema>;
+
 export type SalonExtraordinaryDay = typeof salonExtraordinaryDays.$inferSelect;
 export type InsertSalonExtraordinaryDay = z.infer<typeof insertSalonExtraordinaryDaySchema>;
 
 // Extended types with relations
 export type AppointmentWithDetails = Appointment & {
-  client: Client;
-  stylist: Stylist;
-  service: Service;
+  client: Client | null;
+  stylist: Stylist | null;
+  service: Service | null;
 };
 
 export type RecurringReminderWithDetails = RecurringReminder & {

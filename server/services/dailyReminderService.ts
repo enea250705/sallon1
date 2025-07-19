@@ -99,17 +99,25 @@ export class DailyReminderService {
       let remindersFailed = 0;
       let appointmentsProcessed = 0;
       const appointmentIdsToUpdate: number[] = [];
+      const clientArray = Array.from(clientGroups);
+      const totalClients = clientArray.length;
       
-      for (const [clientPhone, clientData] of Array.from(clientGroups)) {
+      console.log(`📱 Starting to send ${totalClients} reminders with 1-minute intervals`);
+      console.log(`⏱️ Estimated completion time: ${Math.ceil(totalClients)} minutes`);
+      
+      for (let i = 0; i < clientArray.length; i++) {
+        const [clientPhone, clientData] = clientArray[i];
+        const clientNumber = i + 1;
+        
         try {
           const { client, appointments } = clientData;
           const appointmentCount = appointments.length;
           
           if (appointmentCount === 1) {
-            console.log(`📱 Sending reminder to ${client.firstName} ${client.lastName} (${clientPhone}) for ${appointments[0].startTime} - ${appointments[0].service.name}`);
+            console.log(`📱 [${clientNumber}/${totalClients}] Sending reminder to ${client.firstName} ${client.lastName} (${clientPhone}) for ${appointments[0].startTime} - ${appointments[0].service.name}`);
           } else {
             const times = appointments.map((apt: any) => `${apt.startTime} (${apt.service.name})`).join(', ');
-            console.log(`📱 Sending reminder to ${client.firstName} ${client.lastName} (${clientPhone}) for ${appointmentCount} appointments: ${times}`);
+            console.log(`📱 [${clientNumber}/${totalClients}] Sending reminder to ${client.firstName} ${client.lastName} (${clientPhone}) for ${appointmentCount} appointments: ${times}`);
           }
           
           // Send ONE WhatsApp message per client with all their appointments
@@ -130,18 +138,29 @@ export class DailyReminderService {
             }
             remindersSent++;
             
-            console.log(`✅ Reminder sent and ${appointmentCount} appointment(s) marked for batch update`);
+            console.log(`✅ [${clientNumber}/${totalClients}] Reminder sent and ${appointmentCount} appointment(s) marked for batch update`);
           } else {
             remindersFailed++;
-            console.log(`❌ Failed to send reminder to ${client.firstName} ${client.lastName}`);
+            console.log(`❌ [${clientNumber}/${totalClients}] Failed to send reminder to ${client.firstName} ${client.lastName}`);
           }
           
-          // Add small delay between messages to avoid rate limiting
-          await new Promise(resolve => setTimeout(resolve, 2000));
+          // Wait 1 minute before sending the next message (except for the last one)
+          if (i < clientArray.length - 1) {
+            const remainingMessages = totalClients - clientNumber;
+            console.log(`⏳ Waiting 1 minute before next message (${remainingMessages} remaining)...`);
+            await new Promise(resolve => setTimeout(resolve, 60000)); // 1 minute = 60000ms
+          }
           
         } catch (error) {
           remindersFailed++;
-          console.error(`❌ Error processing client ${clientPhone}:`, error);
+          console.error(`❌ [${clientNumber}/${totalClients}] Error processing client ${clientPhone}:`, error);
+          
+          // Still wait 1 minute even if there was an error (except for the last one)
+          if (i < clientArray.length - 1) {
+            const remainingMessages = totalClients - clientNumber;
+            console.log(`⏳ Waiting 1 minute before next message (${remainingMessages} remaining)...`);
+            await new Promise(resolve => setTimeout(resolve, 60000));
+          }
         }
       }
       
@@ -167,22 +186,54 @@ export class DailyReminderService {
   }
 
   /**
-   * Starts the hourly scheduler to check for reminders every hour
+   * Starts the scheduler to run at 09:00 and 19:00 daily
    */
   startDailyScheduler(): void {
-    console.log('🌅 Starting hourly reminder scheduler...');
-    console.log('📅 Reminders will be checked every hour for next day appointments');
+    console.log('🌅 Starting daily reminder scheduler...');
+    console.log('📅 Reminders will be sent at 09:00 and 19:00 daily');
     
-    // Run immediately
-    this.sendDailyReminders();
+    this.scheduleAtSpecificTimes();
     
-    // Then schedule every hour
-    setInterval(() => {
-      console.log('🔔 Hourly reminder check triggered');
-      this.sendDailyReminders();
-    }, 60 * 60 * 1000); // 1 hour
-    
-    console.log('✅ Hourly scheduler configured - checking every hour for appointments needing reminders');
+    console.log('✅ Daily scheduler configured - will run at 09:00 and 19:00');
+  }
+
+  /**
+   * Schedule reminders to run at 09:00 and 19:00 daily
+   */
+  private scheduleAtSpecificTimes(): void {
+    const scheduleNextRun = () => {
+      const now = new Date();
+      const today9AM = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 0, 0, 0);
+      const today7PM = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 19, 0, 0, 0);
+      const tomorrow9AM = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 9, 0, 0, 0);
+
+      let nextRun: Date;
+      let timeLabel: string;
+
+      if (now < today9AM) {
+        nextRun = today9AM;
+        timeLabel = '09:00';
+      } else if (now < today7PM) {
+        nextRun = today7PM;
+        timeLabel = '19:00';
+      } else {
+        nextRun = tomorrow9AM;
+        timeLabel = '09:00 (tomorrow)';
+      }
+
+      const timeUntilNext = nextRun.getTime() - now.getTime();
+      
+      console.log(`⏰ Next reminder run scheduled for ${timeLabel} (in ${Math.round(timeUntilNext / 1000 / 60)} minutes)`);
+
+      setTimeout(() => {
+        console.log(`🔔 Scheduled reminder triggered at ${timeLabel}`);
+        this.sendDailyReminders().then(() => {
+          scheduleNextRun(); // Schedule the next run
+        });
+      }, timeUntilNext);
+    };
+
+    scheduleNextRun();
   }
 
   /**

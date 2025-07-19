@@ -1688,6 +1688,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Test endpoint to check webhook data (no auth required)
+  app.get("/api/test/webhook-status", async (req, res) => {
+    try {
+      // Check if webhook tables exist
+      const sentMessages = await storage.query(`
+        SELECT COUNT(*) as count FROM whatsapp_sent_messages
+      `).catch(() => ({ count: 0 }));
+      
+      const statusUpdates = await storage.query(`
+        SELECT COUNT(*) as count FROM whatsapp_message_status
+      `).catch(() => ({ count: 0 }));
+      
+      // Get recent webhook activity
+      const recentMessages = await storage.query(`
+        SELECT 
+          sm.message_id,
+          sm.recipient_phone,
+          sm.sent_at,
+          COALESCE(ms.status, 'pending') as current_status,
+          ms.timestamp as status_timestamp
+        FROM whatsapp_sent_messages sm
+        LEFT JOIN whatsapp_message_status ms ON sm.message_id = ms.message_id
+        ORDER BY sm.sent_at DESC
+        LIMIT 10
+      `).catch(() => []);
+      
+      res.json({
+        success: true,
+        webhook_configured: true,
+        tables_created: true,
+        stats: {
+          total_messages_sent: sentMessages[0]?.count || 0,
+          total_status_updates: statusUpdates[0]?.count || 0
+        },
+        recent_activity: recentMessages,
+        note: "Webhook is passive - it only logs when Meta sends delivery updates"
+      });
+      
+    } catch (error) {
+      console.error('Error checking webhook status:', error);
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

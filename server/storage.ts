@@ -1395,7 +1395,20 @@ export class DatabaseStorage implements IStorage {
     const existing = await this.getStylistWorkingHoursByDay(stylistId, dayOfWeek);
     
     if (existing) {
-      // Update existing record
+      // Check if values actually changed to prevent unnecessary updates that could cause drift
+      const hasChanges = 
+        existing.startTime !== workingHoursData.startTime ||
+        existing.endTime !== workingHoursData.endTime ||
+        existing.breakStartTime !== workingHoursData.breakStartTime ||
+        existing.breakEndTime !== workingHoursData.breakEndTime ||
+        existing.isWorking !== workingHoursData.isWorking;
+      
+      if (!hasChanges) {
+        // No changes detected, return existing record to prevent drift
+        return existing;
+      }
+      
+      // Update existing record only if changes detected
       const [updated] = await db
         .update(stylistWorkingHours)
         .set({

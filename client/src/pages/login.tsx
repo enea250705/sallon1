@@ -123,15 +123,6 @@ export default function Login() {
                 )}
             </Button>
           </form>
-
-            {/* Demo Credentials */}
-            <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <p className="text-sm text-blue-800 font-medium mb-2">🔑 Credenziali Demo:</p>
-              <div className="text-sm text-blue-700 space-y-1">
-                <p><strong>Username:</strong> admin</p>
-                <p><strong>Password:</strong> admin123</p>
-              </div>
-            </div>
           </div>
 
           {/* Footer */}

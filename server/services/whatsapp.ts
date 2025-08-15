@@ -298,19 +298,24 @@ export class WhatsAppService {
    * Accepts Italian mobile numbers (10 digits starting with 3) and international format
    */
   validatePhoneNumber(phone: string): boolean {
-    // Remove spaces for validation
-    const cleanPhone = phone.replace(/\s+/g, '');
-    
+    // Sanitize: allow only digits and optional leading +
+    const cleanedPhone = phone.replace(/[^\d+]/g, '');
+
+    // Support 0039 prefix by normalizing to +39
+    const normalizedPhone = cleanedPhone.startsWith('0039')
+      ? '+39' + cleanedPhone.slice(4)
+      : cleanedPhone;
+
     // Italian mobile number patterns
     const italianMobileRegex = /^3\d{9}$/; // 10 digits starting with 3
     const italianWithCountryRegex = /^39\d{10}$/; // 39 + 10 digits
     const internationalRegex = /^\+39\d{10}$/; // +39 + 10 digits
     const generalInternationalRegex = /^\+[1-9]\d{1,14}$/; // General international format
     
-    return italianMobileRegex.test(cleanPhone) || 
-           italianWithCountryRegex.test(cleanPhone) ||
-           internationalRegex.test(cleanPhone) ||
-           generalInternationalRegex.test(cleanPhone);
+    return italianMobileRegex.test(normalizedPhone) || 
+           italianWithCountryRegex.test(normalizedPhone) ||
+           internationalRegex.test(normalizedPhone) ||
+           generalInternationalRegex.test(normalizedPhone);
   }
 
   /**

@@ -399,10 +399,14 @@ export default function Calendar() {
 
   const updateExistingAppointment = async (data: AppointmentForm) => {
     try {
-      // If client name was changed, update the client first
+      // Always update client data if name or phone changed
       if (data.clientName && editingAppointment.client) {
         const currentFullName = `${editingAppointment.client.firstName} ${editingAppointment.client.lastName}`;
-        if (data.clientName !== currentFullName) {
+        const currentPhone = extractPhoneDigits(editingAppointment.client.phone || "");
+        const newPhone = extractPhoneDigits(data.clientPhone || "");
+        
+        // Check if name or phone changed
+        if (data.clientName !== currentFullName || newPhone !== currentPhone) {
           const nameParts = data.clientName.split(' ');
           const firstName = nameParts[0] || data.clientName;
           const lastName = nameParts.slice(1).join(' ') || "";

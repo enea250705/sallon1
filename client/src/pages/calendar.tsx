@@ -1260,7 +1260,6 @@ export default function Calendar() {
                                   {...field}
                                   placeholder="376 102 4089" 
                                   className="flex-1 bg-transparent text-base placeholder-gray-500 focus:outline-none pr-4"
-                                  readOnly={form.watch("clientType") === "existing" && Boolean(form.watch("clientId"))}
                                   onChange={(e) => {
                                     // Remove any non-digit characters and format
                                     const value = e.target.value.replace(/[^\d]/g, '');

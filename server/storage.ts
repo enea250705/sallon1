@@ -1449,6 +1449,15 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(salonExtraordinaryDays).orderBy(salonExtraordinaryDays.date);
   }
 
+  async updateSalonExtraordinaryDay(id: number, dayData: Partial<InsertSalonExtraordinaryDay>): Promise<SalonExtraordinaryDay | undefined> {
+    const [day] = await db
+      .update(salonExtraordinaryDays)
+      .set({ ...dayData, updatedAt: new Date() })
+      .where(eq(salonExtraordinaryDays.id, id))
+      .returning();
+    return day || undefined;
+  }
+
   async deleteSalonExtraordinaryDay(id: number): Promise<boolean> {
     const result = await db.delete(salonExtraordinaryDays).where(eq(salonExtraordinaryDays.id, id));
     return (result.rowCount ?? 0) > 0;

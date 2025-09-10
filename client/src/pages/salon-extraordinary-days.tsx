@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar, Trash2, Plus, Star } from "lucide-react";
+import { Calendar, Trash2, Plus, Star, Edit } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 
@@ -31,6 +31,8 @@ export default function SalonExtraordinaryDays() {
   const [openTime, setOpenTime] = useState("09:00");
   const [closeTime, setCloseTime] = useState("18:00");
   const [notes, setNotes] = useState("");
+  const [editingDay, setEditingDay] = useState<ExtraordinaryDay | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
 
   // Fetch extraordinary days
   const { data: extraordinaryDays, refetch: refetchDays } = useQuery<ExtraordinaryDay[]>({
@@ -85,19 +87,77 @@ export default function SalonExtraordinaryDays() {
         description: "Il giorno straordinario è stato aggiunto con successo.",
       });
       // Reset form
-      setDate("");
-      setType("Festività");
-      setDescription("");
-      setIsOpen(false);
-      setOpenTime("09:00");
-      setCloseTime("18:00");
-      setNotes("");
+      resetForm();
       // Refresh data
       refetchDays();
       queryClient.invalidateQueries({ queryKey: ["/api/salon-extraordinary-days"] });
     },
     onError: (error: Error) => {
       console.error('Add extraordinary day error:', error);
+      toast({
+        title: "Errore",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Update extraordinary day mutation
+  const updateDayMutation = useMutation({
+    mutationFn: async () => {
+      if (!editingDay) {
+        throw new Error("Nessun giorno da modificare");
+      }
+
+      if (!date) {
+        throw new Error("Data richiesta");
+      }
+
+      if (!type) {
+        throw new Error("Tipo richiesto");
+      }
+
+      const reason = description ? `${type} - ${description}` : type;
+
+      const payload = {
+        date,
+        reason,
+        isClosed: !isOpen,
+        specialOpenTime: isOpen ? openTime : null,
+        specialCloseTime: isOpen ? closeTime : null,
+        notes: notes || null,
+      };
+
+      console.log('Updating extraordinary day:', payload);
+
+      const response = await fetch(`/api/salon-extraordinary-days/${editingDay.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Errore aggiornando giorno straordinario: ${response.status} - ${errorText}`);
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Giorno straordinario aggiornato",
+        description: "Il giorno straordinario è stato aggiornato con successo.",
+      });
+      // Reset form and editing state
+      resetForm();
+      setIsEditing(false);
+      setEditingDay(null);
+      // Refresh data
+      refetchDays();
+      queryClient.invalidateQueries({ queryKey: ["/api/salon-extraordinary-days"] });
+    },
+    onError: (error: Error) => {
+      console.error('Update extraordinary day error:', error);
       toast({
         title: "Errore",
         description: error.message,
@@ -136,6 +196,43 @@ export default function SalonExtraordinaryDays() {
     },
   });
 
+  // Reset form function
+  const resetForm = () => {
+    setDate("");
+    setType("Festività");
+    setDescription("");
+    setIsOpen(false);
+    setOpenTime("09:00");
+    setCloseTime("18:00");
+    setNotes("");
+  };
+
+  // Edit day function
+  const handleEditDay = (day: ExtraordinaryDay) => {
+    setEditingDay(day);
+    setIsEditing(true);
+    
+    // Parse the reason to extract type and description
+    const reasonParts = day.reason.split(' - ');
+    const dayType = reasonParts[0];
+    const dayDescription = reasonParts.slice(1).join(' - ');
+    
+    setDate(day.date);
+    setType(dayType);
+    setDescription(dayDescription);
+    setIsOpen(!day.isClosed);
+    setOpenTime(day.specialOpenTime || "09:00");
+    setCloseTime(day.specialCloseTime || "18:00");
+    setNotes(day.notes || "");
+  };
+
+  // Cancel edit function
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setEditingDay(null);
+    resetForm();
+  };
+
   // Get today's date for min attribute
   const today = new Date().toISOString().split('T')[0];
 
@@ -154,12 +251,12 @@ export default function SalonExtraordinaryDays() {
           </div>
         </div>
 
-        {/* Add Extraordinary Day Form */}
+        {/* Add/Edit Extraordinary Day Form */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
               <Plus className="h-5 w-5" />
-              <span>Aggiungi Giorno Straordinario</span>
+              <span>{isEditing ? "Modifica Giorno Straordinario" : "Aggiungi Giorno Straordinario"}</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -249,16 +346,28 @@ export default function SalonExtraordinaryDays() {
                 />
               </div>
 
-              {/* Add Button */}
-              <div className="md:col-span-2">
+              {/* Action Buttons */}
+              <div className="md:col-span-2 flex space-x-2">
                 <Button 
-                  onClick={() => addDayMutation.mutate()}
-                  disabled={addDayMutation.isPending || !date || !description}
-                  className="w-full bg-purple-600 hover:bg-purple-700"
+                  onClick={() => isEditing ? updateDayMutation.mutate() : addDayMutation.mutate()}
+                  disabled={(isEditing ? updateDayMutation.isPending : addDayMutation.isPending) || !date || !description}
+                  className="flex-1 bg-purple-600 hover:bg-purple-700"
                 >
                   <Plus className="h-4 w-4 mr-2" />
-                  {addDayMutation.isPending ? "Aggiungendo..." : "Aggiungi Giorno Straordinario"}
+                  {isEditing 
+                    ? (updateDayMutation.isPending ? "Aggiornando..." : "Aggiorna Giorno Straordinario")
+                    : (addDayMutation.isPending ? "Aggiungendo..." : "Aggiungi Giorno Straordinario")
+                  }
                 </Button>
+                {isEditing && (
+                  <Button 
+                    onClick={handleCancelEdit}
+                    variant="outline"
+                    className="px-4"
+                  >
+                    Annulla
+                  </Button>
+                )}
               </div>
             </div>
           </CardContent>
@@ -298,14 +407,24 @@ export default function SalonExtraordinaryDays() {
                         {day.notes && ` • ${day.notes}`}
                       </p>
                     </div>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => deleteDayMutation.mutate(day.id)}
-                      disabled={deleteDayMutation.isPending}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <div className="flex space-x-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleEditDay(day)}
+                        disabled={isEditing}
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => deleteDayMutation.mutate(day.id)}
+                        disabled={deleteDayMutation.isPending}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>

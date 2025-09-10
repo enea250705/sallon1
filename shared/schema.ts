@@ -92,7 +92,7 @@ export const stylistVacations = pgTable("stylist_vacations", {
 // Extraordinary salon closures/openings table
 export const salonExtraordinaryDays = pgTable("salon_extraordinary_days", {
   id: serial("id").primaryKey(),
-  date: date("date").notNull().unique(),
+  date: date("date").notNull(),
   isClosed: boolean("is_closed").default(true), // true = closed, false = special opening
   reason: varchar("reason", { length: 200 }).notNull(),
   specialOpenTime: time("special_open_time"), // for special openings

@@ -49,9 +49,9 @@ async function handler(req: any, res: any) {
     }
 
     if (req.method === 'PUT') {
-      const { date } = req.query;
-      if (!date) {
-        return res.status(400).json({ message: 'Data richiesta' });
+      const { id } = req.query;
+      if (!id) {
+        return res.status(400).json({ message: 'ID richiesto' });
       }
 
       const validation = salonExtraordinaryDaySchema.partial().safeParse(req.body);
@@ -70,7 +70,7 @@ async function handler(req: any, res: any) {
         });
       }
 
-      const extraordinaryDay = await storage.updateSalonExtraordinaryDay(date, validation.data);
+      const extraordinaryDay = await storage.updateSalonExtraordinaryDay(parseInt(id), validation.data);
       if (!extraordinaryDay) {
         return res.status(404).json({ message: 'Giorno straordinario non trovato' });
       }
@@ -79,12 +79,12 @@ async function handler(req: any, res: any) {
     }
 
     if (req.method === 'DELETE') {
-      const { date } = req.query;
-      if (!date) {
-        return res.status(400).json({ message: 'Data richiesta' });
+      const { id } = req.query;
+      if (!id) {
+        return res.status(400).json({ message: 'ID richiesto' });
       }
 
-      const success = await storage.deleteSalonExtraordinaryDay(date);
+      const success = await storage.deleteSalonExtraordinaryDay(parseInt(id));
       if (!success) {
         return res.status(404).json({ message: 'Giorno straordinario non trovato' });
       }

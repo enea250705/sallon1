@@ -752,17 +752,17 @@ export class ServerlessStorage {
       .orderBy(salonExtraordinaryDays.date);
   }
 
-  async updateSalonExtraordinaryDay(date: string, dayData: Partial<InsertSalonExtraordinaryDay>): Promise<SalonExtraordinaryDay | undefined> {
+  async updateSalonExtraordinaryDay(idOrDate: number | string, dayData: Partial<InsertSalonExtraordinaryDay>): Promise<SalonExtraordinaryDay | undefined> {
     const [day] = await db()
       .update(salonExtraordinaryDays)
       .set({ ...dayData, updatedAt: new Date() })
-      .where(eq(salonExtraordinaryDays.date, date))
+      .where(typeof idOrDate === 'number' ? eq(salonExtraordinaryDays.id, idOrDate) : eq(salonExtraordinaryDays.date, idOrDate))
       .returning();
     return day || undefined;
   }
 
-  async deleteSalonExtraordinaryDay(date: string): Promise<boolean> {
-    const result = await db().delete(salonExtraordinaryDays).where(eq(salonExtraordinaryDays.date, date));
+  async deleteSalonExtraordinaryDay(idOrDate: number | string): Promise<boolean> {
+    const result = await db().delete(salonExtraordinaryDays).where(typeof idOrDate === 'number' ? eq(salonExtraordinaryDays.id, idOrDate) : eq(salonExtraordinaryDays.date, idOrDate));
     return (result.rowCount ?? 0) > 0;
   }
 

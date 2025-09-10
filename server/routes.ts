@@ -622,6 +622,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.put("/api/salon-extraordinary-days/:id", async (req, res) => {
+    try {
+      console.log('PUT /api/salon-extraordinary-days/:id called with id:', req.params.id, 'body:', req.body);
+      const id = parseInt(req.params.id);
+      const { date, reason, isClosed, specialOpenTime, specialCloseTime, notes } = req.body;
+      
+      if (!date || !reason) {
+        console.log('Missing required fields:', { date, reason });
+        return res.status(400).json({ message: "Date and reason are required" });
+      }
+      
+      const payload = {
+        date,
+        reason,
+        isClosed: typeof isClosed === 'boolean' ? isClosed : true,
+        specialOpenTime: isClosed ? null : specialOpenTime || null,
+        specialCloseTime: isClosed ? null : specialCloseTime || null,
+        notes: notes || null,
+      };
+
+      console.log('Updating extraordinary day with payload:', payload);
+      const extraordinaryDay = await storage.updateSalonExtraordinaryDay(id, payload);
+      
+      if (!extraordinaryDay) {
+        return res.status(404).json({ message: "Salon extraordinary day not found" });
+      }
+      
+      console.log('Updated extraordinary day:', extraordinaryDay);
+      res.json(extraordinaryDay);
+    } catch (error) {
+      console.error("Error updating salon extraordinary day:", error);
+      res.status(500).json({ message: "Failed to update salon extraordinary day", error: error.message });
+    }
+  });
+
   app.delete("/api/salon-extraordinary-days/:id", async (req, res) => {
     try {
       console.log('DELETE /api/salon-extraordinary-days/:id called with id:', req.params.id);

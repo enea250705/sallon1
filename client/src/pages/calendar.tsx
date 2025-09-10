@@ -843,14 +843,8 @@ export default function Calendar() {
     
     // If it's an extraordinary day with special hours, check if stylist is working during those hours
     if (extraordinaryDay && !extraordinaryDay.isClosed && extraordinaryDay.specialOpenTime && extraordinaryDay.specialCloseTime) {
-      // Check if stylist is normally working this day
-      const dayOfWeek = selectedDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
-      const workingHours = stylistWorkingHours[stylistId];
-      const dayHours = workingHours.find(wh => wh.dayOfWeek === dayOfWeek);
-      
-      if (!dayHours || !dayHours.isWorking) {
-        return false; // Stylist doesn't work this day normally
-      }
+      // For extraordinary days, we assume stylists can work if the salon is open
+      // regardless of their normal weekly schedule
       
       // Convert time to minutes for comparison
       const [hour, minute] = time.split(':').map(Number);
@@ -904,13 +898,15 @@ export default function Calendar() {
     
     // If it's an extraordinary day with special hours, check break within those hours
     if (extraordinaryDay && !extraordinaryDay.isClosed && extraordinaryDay.specialOpenTime && extraordinaryDay.specialCloseTime) {
-      // Check if stylist is normally working this day
+      // For extraordinary days, we need to check if stylist has break time configured
+      // We'll use the stylist's normal break time if they normally work this day
       const dayOfWeek = selectedDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
       const workingHours = stylistWorkingHours[stylistId];
       const dayHours = workingHours.find(wh => wh.dayOfWeek === dayOfWeek);
       
+      // If stylist doesn't normally work this day, they don't have a break schedule
       if (!dayHours || !dayHours.isWorking || !dayHours.breakStartTime || !dayHours.breakEndTime) {
-        return false; // Stylist doesn't work this day normally or no break time set
+        return false; // No break time configured for this day
       }
       
       // Convert time to minutes for comparison

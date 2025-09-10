@@ -852,19 +852,23 @@ export default function Calendar() {
   // Helper function to check if a stylist is working at a specific time
   const isStylistWorkingAtTime = (stylistId: number, time: string): boolean => {
     if (!stylistWorkingHours || !stylistWorkingHours[stylistId]) {
+      console.log('🔍 Stylist Debug - No working hours for stylist:', stylistId);
       return false; // Default to not working if no hours are set
     }
 
     // Check if this is an extraordinary day
     const extraordinaryDay = getSalonExtraordinaryDay(selectedDate);
+    console.log('🔍 Stylist Debug - Extraordinary day for stylist check:', extraordinaryDay);
     
     // If it's an extraordinary day and the salon is closed, stylist is not working
     if (extraordinaryDay && extraordinaryDay.isClosed) {
+      console.log('🔍 Stylist Debug - Salon closed on extraordinary day');
       return false;
     }
     
     // If it's an extraordinary day with special hours, check if stylist is working during those hours
     if (extraordinaryDay && !extraordinaryDay.isClosed && extraordinaryDay.specialOpenTime && extraordinaryDay.specialCloseTime) {
+      console.log('🔍 Stylist Debug - Using extraordinary day logic for stylist:', stylistId, 'at time:', time);
       // For extraordinary days, we assume stylists can work if the salon is open
       // regardless of their normal weekly schedule
       
@@ -879,7 +883,9 @@ export default function Calendar() {
       const [endHour, endMinute] = extraordinaryDay.specialCloseTime.split(':').map(Number);
       const endMinutes = endHour * 60 + endMinute;
       
-      return timeMinutes >= startMinutes && timeMinutes < endMinutes;
+      const isWorking = timeMinutes >= startMinutes && timeMinutes < endMinutes;
+      console.log('🔍 Stylist Debug - Stylist working result:', isWorking, 'time:', timeMinutes, 'range:', startMinutes, '-', endMinutes);
+      return isWorking;
     }
 
     // Normal day logic

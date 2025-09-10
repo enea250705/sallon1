@@ -693,6 +693,36 @@ export default function Calendar() {
 
   // Generate time slots based on opening hours for the selected day (15min intervals)
   const timeSlots = React.useMemo(() => {
+    // Check if the selected date is an extraordinary day
+    const selectedDateString = selectedDate.toISOString().split('T')[0];
+    const extraordinaryDay = extraordinaryDays?.find((day: any) => day.date === selectedDateString);
+    
+    // If it's an extraordinary day, use special hours
+    if (extraordinaryDay) {
+      // If the salon is closed on this extraordinary day, return empty slots
+      if (extraordinaryDay.isClosed) {
+        return [];
+      }
+      
+      // If it's a special opening day, use the special hours
+      if (extraordinaryDay.specialOpenTime && extraordinaryDay.specialCloseTime) {
+        const [openHour, openMinute] = extraordinaryDay.specialOpenTime.split(':').map(Number);
+        const [closeHour, closeMinute] = extraordinaryDay.specialCloseTime.split(':').map(Number);
+        
+        const openTimeMinutes = openHour * 60 + openMinute;
+        const closeTimeMinutes = closeHour * 60 + closeMinute;
+        
+        const slots = [];
+        for (let minutes = openTimeMinutes; minutes < closeTimeMinutes; minutes += 15) {
+          const hour = Math.floor(minutes / 60);
+          const minute = minutes % 60;
+          slots.push(`${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`);
+        }
+        
+        return slots;
+      }
+    }
+    
     // Get the day name for the selected date
     const currentDay = getDayName(selectedDate);
     
@@ -727,7 +757,7 @@ export default function Calendar() {
     }
     
     return slots;
-  }, [openingHours, selectedDate, forceUpdate]);
+  }, [openingHours, selectedDate, extraordinaryDays, forceUpdate]);
 
   // Filter stylists based on selection
   const filteredStylists = selectedStylistFilter === 'all' 
@@ -803,6 +833,40 @@ export default function Calendar() {
       return false; // Default to not working if no hours are set
     }
 
+    // Check if this is an extraordinary day
+    const extraordinaryDay = getSalonExtraordinaryDay(selectedDate);
+    
+    // If it's an extraordinary day and the salon is closed, stylist is not working
+    if (extraordinaryDay && extraordinaryDay.isClosed) {
+      return false;
+    }
+    
+    // If it's an extraordinary day with special hours, check if stylist is working during those hours
+    if (extraordinaryDay && !extraordinaryDay.isClosed && extraordinaryDay.specialOpenTime && extraordinaryDay.specialCloseTime) {
+      // Check if stylist is normally working this day
+      const dayOfWeek = selectedDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
+      const workingHours = stylistWorkingHours[stylistId];
+      const dayHours = workingHours.find(wh => wh.dayOfWeek === dayOfWeek);
+      
+      if (!dayHours || !dayHours.isWorking) {
+        return false; // Stylist doesn't work this day normally
+      }
+      
+      // Convert time to minutes for comparison
+      const [hour, minute] = time.split(':').map(Number);
+      const timeMinutes = hour * 60 + minute;
+      
+      // Use salon's special hours
+      const [startHour, startMinute] = extraordinaryDay.specialOpenTime.split(':').map(Number);
+      const startMinutes = startHour * 60 + startMinute;
+      
+      const [endHour, endMinute] = extraordinaryDay.specialCloseTime.split(':').map(Number);
+      const endMinutes = endHour * 60 + endMinute;
+      
+      return timeMinutes >= startMinutes && timeMinutes < endMinutes;
+    }
+
+    // Normal day logic
     const dayOfWeek = selectedDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
     const workingHours = stylistWorkingHours[stylistId];
     const dayHours = workingHours.find(wh => wh.dayOfWeek === dayOfWeek);
@@ -830,6 +894,53 @@ export default function Calendar() {
       return false; // Default to not on break if no hours are set
     }
 
+    // Check if this is an extraordinary day
+    const extraordinaryDay = getSalonExtraordinaryDay(selectedDate);
+    
+    // If it's an extraordinary day and the salon is closed, stylist is not on break
+    if (extraordinaryDay && extraordinaryDay.isClosed) {
+      return false;
+    }
+    
+    // If it's an extraordinary day with special hours, check break within those hours
+    if (extraordinaryDay && !extraordinaryDay.isClosed && extraordinaryDay.specialOpenTime && extraordinaryDay.specialCloseTime) {
+      // Check if stylist is normally working this day
+      const dayOfWeek = selectedDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
+      const workingHours = stylistWorkingHours[stylistId];
+      const dayHours = workingHours.find(wh => wh.dayOfWeek === dayOfWeek);
+      
+      if (!dayHours || !dayHours.isWorking || !dayHours.breakStartTime || !dayHours.breakEndTime) {
+        return false; // Stylist doesn't work this day normally or no break time set
+      }
+      
+      // Convert time to minutes for comparison
+      const [hour, minute] = time.split(':').map(Number);
+      const timeMinutes = hour * 60 + minute;
+      
+      // Use salon's special hours for working hours check
+      const [startHour, startMinute] = extraordinaryDay.specialOpenTime.split(':').map(Number);
+      const startMinutes = startHour * 60 + startMinute;
+      
+      const [endHour, endMinute] = extraordinaryDay.specialCloseTime.split(':').map(Number);
+      const endMinutes = endHour * 60 + endMinute;
+      
+      const isWithinWorkingHours = timeMinutes >= startMinutes && timeMinutes < endMinutes;
+      
+      if (!isWithinWorkingHours) {
+        return false; // Not even in working hours
+      }
+      
+      // Check if time is during break time (use stylist's normal break times)
+      const [breakStartHour, breakStartMinute] = dayHours.breakStartTime.split(':').map(Number);
+      const breakStartMinutes = breakStartHour * 60 + breakStartMinute;
+      
+      const [breakEndHour, breakEndMinute] = dayHours.breakEndTime.split(':').map(Number);
+      const breakEndMinutes = breakEndHour * 60 + breakEndMinute;
+      
+      return timeMinutes >= breakStartMinutes && timeMinutes < breakEndMinutes;
+    }
+
+    // Normal day logic
     const dayOfWeek = selectedDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
     const workingHours = stylistWorkingHours[stylistId];
     const dayHours = workingHours.find(wh => wh.dayOfWeek === dayOfWeek);

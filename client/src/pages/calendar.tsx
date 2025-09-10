@@ -695,17 +695,24 @@ export default function Calendar() {
   const timeSlots = React.useMemo(() => {
     // Check if the selected date is an extraordinary day
     const selectedDateString = selectedDate.toISOString().split('T')[0];
+    console.log('🔍 Calendar Debug - Selected date:', selectedDateString);
+    console.log('🔍 Calendar Debug - Extraordinary days:', extraordinaryDays);
+    
     const extraordinaryDay = extraordinaryDays?.find((day: any) => day.date === selectedDateString);
+    console.log('🔍 Calendar Debug - Found extraordinary day:', extraordinaryDay);
     
     // If it's an extraordinary day, use special hours
     if (extraordinaryDay) {
+      console.log('🔍 Calendar Debug - Using extraordinary day logic');
       // If the salon is closed on this extraordinary day, return empty slots
       if (extraordinaryDay.isClosed) {
+        console.log('🔍 Calendar Debug - Salon is closed on extraordinary day');
         return [];
       }
       
       // If it's a special opening day, use the special hours
       if (extraordinaryDay.specialOpenTime && extraordinaryDay.specialCloseTime) {
+        console.log('🔍 Calendar Debug - Using special hours:', extraordinaryDay.specialOpenTime, 'to', extraordinaryDay.specialCloseTime);
         const [openHour, openMinute] = extraordinaryDay.specialOpenTime.split(':').map(Number);
         const [closeHour, closeMinute] = extraordinaryDay.specialCloseTime.split(':').map(Number);
         
@@ -719,9 +726,12 @@ export default function Calendar() {
           slots.push(`${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`);
         }
         
+        console.log('🔍 Calendar Debug - Generated slots:', slots);
         return slots;
       }
     }
+    
+    console.log('🔍 Calendar Debug - Using normal day logic');
     
     // Get the day name for the selected date
     const currentDay = getDayName(selectedDate);

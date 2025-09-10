@@ -774,25 +774,37 @@ export default function Calendar() {
       return 0;
     }
     
-    // Get the day name for the selected date
-    const currentDay = getDayName(selectedDate);
+    // Check if this is an extraordinary day
+    const selectedDateString = selectedDate.toISOString().split('T')[0];
+    const extraordinaryDay = extraordinaryDays?.find((day: any) => day.date === selectedDateString);
     
-    // Get hours for the current day
-    let dayHours;
-    if (openingHours && openingHours[currentDay]) {
-      dayHours = openingHours[currentDay];
-    } else if (openingHours && openingHours.openTime) {
-      // Old format fallback
-      dayHours = { openTime: openingHours.openTime, closeTime: openingHours.closeTime, isOpen: true };
+    let openTimeMinutes;
+    
+    // If it's an extraordinary day with special hours, use those
+    if (extraordinaryDay && !extraordinaryDay.isClosed && extraordinaryDay.specialOpenTime && extraordinaryDay.specialCloseTime) {
+      const [openHour, openMinute] = extraordinaryDay.specialOpenTime.split(':').map(Number);
+      openTimeMinutes = openHour * 60 + openMinute;
     } else {
-      // Default fallback
-      dayHours = { openTime: "08:00", closeTime: "20:00", isOpen: true };
+      // Get the day name for the selected date
+      const currentDay = getDayName(selectedDate);
+      
+      // Get hours for the current day
+      let dayHours;
+      if (openingHours && openingHours[currentDay]) {
+        dayHours = openingHours[currentDay];
+      } else if (openingHours && openingHours.openTime) {
+        // Old format fallback
+        dayHours = { openTime: openingHours.openTime, closeTime: openingHours.closeTime, isOpen: true };
+      } else {
+        // Default fallback
+        dayHours = { openTime: "08:00", closeTime: "20:00", isOpen: true };
+      }
+      
+      const [openHour, openMinute] = dayHours.openTime.split(':').map(Number);
+      openTimeMinutes = openHour * 60 + openMinute;
     }
     
-    const [openHour, openMinute] = dayHours.openTime.split(':').map(Number);
-    const openTimeMinutes = openHour * 60 + openMinute;
     const timeMinutes = hours * 60 + minutes;
-    
     const relativeMinutes = timeMinutes - openTimeMinutes;
     return Math.max(0, relativeMinutes / 15); // Each slot is 15 minutes
   };
